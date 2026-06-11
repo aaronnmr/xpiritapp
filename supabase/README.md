@@ -65,6 +65,15 @@ HealthKit and Health Connect writes require native app capabilities and cannot b
 
 Google is implemented in the app and should be enabled in Supabase Auth Providers with the Google Web OAuth client ID and client secret.
 
+Set the Supabase Auth URL configuration to:
+
+```text
+Site URL: https://xpiritapp.vercel.app
+Redirect URLs:
+- https://xpiritapp.vercel.app
+- https://xpiritapp.vercel.app/**
+```
+
 Apple Sign In is implemented in code but intentionally not activated until an Apple Developer account is used to configure Sign in with Apple, Services ID, Team ID, Key ID, and the `.p8` private key inside Supabase.
 
 ## RevenueCat Foundation
