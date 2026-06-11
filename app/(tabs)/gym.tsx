@@ -111,13 +111,19 @@ export default function GymScreen() {
             return (
               <Pressable
                 key={item}
-                className={`rounded-full px-4 py-3 ${isSelected ? "bg-[#4a53ff]" : "bg-white"}`}
+                className={`min-h-[44px] max-w-full justify-center rounded-[300px] px-4 py-3 ${isSelected ? "bg-[#4a53ff]" : "bg-white"}`}
                 onPress={() => {
                   setActivity(item);
                   setCustomActivity("");
                 }}
               >
-                <Text className={`text-sm font-semibold uppercase tracking-widest ${isSelected ? "text-white" : "text-black"}`}>{item}</Text>
+                <Text
+                  className={`text-xs font-semibold uppercase tracking-widest ${isSelected ? "text-white" : "text-black"}`}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                >
+                  {item}
+                </Text>
               </Pressable>
             );
           })}
@@ -129,9 +135,23 @@ export default function GymScreen() {
           placeholderTextColor="#808080"
           className="mt-3 rounded-[24px] bg-white px-4 py-4 text-base text-black"
         />
-        <View className="flex-row gap-3">
-          <TextInput value={weight} onChangeText={setWeight} placeholder="Weight kg" placeholderTextColor="#808080" keyboardType="decimal-pad" className="mt-3 flex-1 rounded-[24px] bg-white px-4 py-4 text-base text-black" />
-          <TextInput value={reps} onChangeText={setReps} placeholder="Reps" placeholderTextColor="#808080" keyboardType="number-pad" className="mt-3 flex-1 rounded-[24px] bg-white px-4 py-4 text-base text-black" />
+        <View className="mt-3 flex-row gap-3">
+          <TextInput
+            value={weight}
+            onChangeText={setWeight}
+            placeholder="Weight kg"
+            placeholderTextColor="#808080"
+            keyboardType="decimal-pad"
+            className="min-w-0 flex-1 rounded-[24px] bg-white px-4 py-4 text-base text-black"
+          />
+          <TextInput
+            value={reps}
+            onChangeText={setReps}
+            placeholder="Reps"
+            placeholderTextColor="#808080"
+            keyboardType="number-pad"
+            className="min-w-0 flex-1 rounded-[24px] bg-white px-4 py-4 text-base text-black"
+          />
         </View>
         <Pressable className={`mt-4 rounded-full px-6 py-4 ${canAddSet ? "bg-[#4a53ff]" : "bg-[#e5e7eb]"}`} onPress={addSet}>
           <Text className={`text-center text-sm font-semibold uppercase tracking-widest ${canAddSet ? "text-white" : "text-[#808080]"}`}>Save Set</Text>
@@ -139,38 +159,62 @@ export default function GymScreen() {
       </View>
 
       <View className="mt-5 rounded-[24px] bg-black p-5">
-        <View className="flex-row items-center justify-between">
-          <Text className="text-xl font-semibold tracking-[-0.6px] text-white">Interval Timer</Text>
-          <Text className="text-sm font-semibold uppercase tracking-widest text-[#4a53ff]">{phase}</Text>
+        <View className="flex-row items-center justify-between gap-3">
+          <Text className="min-w-0 flex-1 text-xl font-semibold tracking-[-0.6px] text-white" numberOfLines={1}>
+            Interval Timer
+          </Text>
+          <Text className="shrink-0 text-sm font-semibold uppercase tracking-widest text-[#4a53ff]">{phase}</Text>
         </View>
-        <Text className="mt-5 text-center text-6xl font-normal tracking-[-2px] text-white">{formatSeconds(remaining)}</Text>
+        <Text className="mt-5 text-center text-6xl font-normal tracking-[-2px] text-white" numberOfLines={1} adjustsFontSizeToFit>
+          {formatSeconds(remaining)}
+        </Text>
         <View className="mt-5 flex-row gap-3">
-          <TextInput value={workSeconds} onChangeText={setWorkSeconds} placeholder="Work sec" placeholderTextColor="#999999" keyboardType="number-pad" className="flex-1 rounded-[24px] bg-[#191919] px-4 py-4 text-base text-white" />
-          <TextInput value={restSeconds} onChangeText={setRestSeconds} placeholder="Rest sec" placeholderTextColor="#999999" keyboardType="number-pad" className="flex-1 rounded-[24px] bg-[#191919] px-4 py-4 text-base text-white" />
+          <TextInput
+            value={workSeconds}
+            onChangeText={setWorkSeconds}
+            placeholder="Work sec"
+            placeholderTextColor="#999999"
+            keyboardType="number-pad"
+            className="min-w-0 flex-1 rounded-[24px] bg-[#191919] px-4 py-4 text-base text-white"
+          />
+          <TextInput
+            value={restSeconds}
+            onChangeText={setRestSeconds}
+            placeholder="Rest sec"
+            placeholderTextColor="#999999"
+            keyboardType="number-pad"
+            className="min-w-0 flex-1 rounded-[24px] bg-[#191919] px-4 py-4 text-base text-white"
+          />
         </View>
         <View className="mt-4 flex-row gap-3">
-          <Pressable className="flex-1 rounded-full bg-white px-6 py-4" onPress={startTimer}>
-            <Text className="text-center text-sm font-semibold uppercase tracking-widest text-black">Start</Text>
+          <Pressable className="min-w-0 flex-1 rounded-[300px] bg-white px-4 py-4" onPress={startTimer}>
+            <Text className="text-center text-xs font-semibold uppercase tracking-widest text-black" numberOfLines={1} adjustsFontSizeToFit>
+              Start
+            </Text>
           </Pressable>
-          <Pressable className="flex-1 rounded-full border border-white px-6 py-4" onPress={() => setIsRunning((current) => !current)}>
-            <Text className="text-center text-sm font-semibold uppercase tracking-widest text-white">{isRunning ? "Pause" : "Resume"}</Text>
+          <Pressable className="min-w-0 flex-1 rounded-[300px] border border-white px-4 py-4" onPress={() => setIsRunning((current) => !current)}>
+            <Text className="text-center text-xs font-semibold uppercase tracking-widest text-white" numberOfLines={1} adjustsFontSizeToFit>
+              {isRunning ? "Pause" : "Resume"}
+            </Text>
           </Pressable>
         </View>
       </View>
 
       <View className="mt-5">
-        <View className="mb-3 flex-row items-center justify-between">
+        <View className="mb-3 flex-row items-center justify-between gap-3">
           <Text className="text-xl font-semibold tracking-[-0.6px] text-black">Saved Sets</Text>
-          <Text className="text-base text-[#808080]">{totalVolume} kg volume</Text>
+          <Text className="shrink text-right text-base text-[#808080]">{totalVolume} kg volume</Text>
         </View>
         <View className="gap-3">
           {sets.map((item) => (
-            <View key={item.id} className="flex-row items-center justify-between rounded-[24px] bg-[#f3f5f9] p-5">
-              <View>
-                <Text className="text-xl font-semibold tracking-[-0.6px] text-black">{item.activity}</Text>
+            <View key={item.id} className="flex-row items-center justify-between gap-3 rounded-[24px] bg-[#f3f5f9] p-5">
+              <View className="min-w-0 flex-1">
+                <Text className="text-xl font-semibold tracking-[-0.6px] text-black" numberOfLines={1}>
+                  {item.activity}
+                </Text>
                 <Text className="mt-1 text-base text-[#808080]">{item.weight} kg</Text>
               </View>
-              <Text className="text-3xl font-normal tracking-[-1px] text-black">{item.reps}</Text>
+              <Text className="shrink-0 text-3xl font-normal tracking-[-1px] text-black">{item.reps}</Text>
             </View>
           ))}
         </View>
