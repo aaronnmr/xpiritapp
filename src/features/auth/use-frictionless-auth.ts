@@ -3,7 +3,7 @@ import * as Crypto from "expo-crypto";
 import * as Google from "expo-auth-session/providers/google";
 import * as WebBrowser from "expo-web-browser";
 import { router } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Platform } from "react-native";
 
 import { useI18n } from "@/lib/i18n";
@@ -31,6 +31,7 @@ export function useFrictionlessAuth() {
   const [appleAvailable, setAppleAvailable] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [status, setStatus] = useState<AuthStatus>("idle");
+  const completedSessionRef = useRef<string | null>(null);
 
   const hasGoogleClientId = useMemo(() => {
     const platformClientId = Platform.select({
@@ -61,14 +62,29 @@ export function useFrictionlessAuth() {
       return;
     }
 
+    const finishExistingSession = (userId: string, rawProvider?: string) => {
+      const provider = normalizeAuthProvider(rawProvider);
+      void completeAuthenticatedSession(provider, userId).catch(handleAuthError);
+    };
+
     supabase.auth
       .getSession()
       .then(({ data }) => {
         if (data.session?.user.id) {
-          void completeAuthenticatedSession("google", data.session.user.id);
+          finishExistingSession(data.session.user.id, data.session.user.app_metadata?.provider);
         }
       })
       .catch(() => undefined);
+
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_IN" && session?.user.id) {
+        finishExistingSession(session.user.id, session.user.app_metadata?.provider);
+      }
+    });
+
+    return () => {
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
@@ -264,28 +280,41 @@ export function useFrictionlessAuth() {
       throw new Error("Supabase is not configured for authentication.");
     }
 
-    AmplitudeService.identifyUser(userId, { locale, provider });
-    AmplitudeService.track("auth_completed", { locale, provider });
-    await XpiritDataService.ensureProfile(locale);
-    await XpiritDataService.registerDevice(`expo-${Platform.OS}`, {
-      auth_provider: provider,
-      locale
-    });
-    await XpiritDataService.trackEvent("auth_completed", "auth", { locale, provider });
-    await RevenueCatService.configure(userId);
-    await supabase.from("profiles").update({ locale, revenuecat_app_user_id: userId }).eq("id", userId);
+    const sessionKey = `${provider}:${userId}`;
 
-    setStatus("requesting-health");
-    const healthPermissions = await requestNativeHealthRepositoryPermissions();
-
-    setStatus("routing");
-
-    if (healthPermissions.granted) {
-      router.replace("/home");
+    if (completedSessionRef.current === sessionKey) {
       return;
     }
 
-    router.replace("/manual-entry-notice");
+    completedSessionRef.current = sessionKey;
+    AmplitudeService.identifyUser(userId, { locale, provider });
+    AmplitudeService.track("auth_completed", { locale, provider });
+
+    try {
+      await XpiritDataService.ensureProfile(locale);
+      await XpiritDataService.registerDevice(`expo-${Platform.OS}`, {
+        auth_provider: provider,
+        locale
+      });
+      await XpiritDataService.trackEvent("auth_completed", "auth", { locale, provider });
+      await RevenueCatService.configure(userId);
+      await supabase.from("profiles").update({ locale, revenuecat_app_user_id: userId }).eq("id", userId);
+
+      setStatus("requesting-health");
+      const healthPermissions = await requestNativeHealthRepositoryPermissions();
+
+      setStatus("routing");
+
+      if (healthPermissions.granted) {
+        router.replace("/home");
+        return;
+      }
+
+      router.replace("/manual-entry-notice");
+    } catch (error) {
+      completedSessionRef.current = null;
+      throw error;
+    }
   };
 
   const clearFeedback = () => {
@@ -338,4 +367,12 @@ function getWebOAuthRedirectUrl() {
   }
 
   return productionWebRedirectUrl;
+}
+
+function normalizeAuthProvider(provider?: string): AuthProvider {
+  if (provider === "apple" || provider === "email" || provider === "google") {
+    return provider;
+  }
+
+  return "google";
 }
