@@ -6,6 +6,7 @@ import { XpiritDataService } from "@/services/xpirit-data-service";
 
 type GymSet = {
   activity: string;
+  date: string;
   id: number;
   reps: string;
   weight: string;
@@ -25,8 +26,8 @@ export default function GymScreen() {
   const [weight, setWeight] = useState("");
   const [reps, setReps] = useState("");
   const [sets, setSets] = useState<GymSet[]>([
-    { activity: "Bench Press", id: 1, reps: "8", weight: "60" },
-    { activity: "Squat", id: 2, reps: "10", weight: "80" }
+    { activity: "Bench Press", date: "Jun 11, 2026", id: 1, reps: "8", weight: "60" },
+    { activity: "Squat", date: "Jun 10, 2026", id: 2, reps: "10", weight: "80" }
   ]);
   const [workSeconds, setWorkSeconds] = useState("45");
   const [restSeconds, setRestSeconds] = useState("30");
@@ -67,7 +68,7 @@ export default function GymScreen() {
     }
 
     setSets((current) => [
-      { activity: selectedActivity, id: Date.now(), reps, weight },
+      { activity: selectedActivity, date: formatDateLabel(new Date()), id: Date.now(), reps, weight },
       ...current
     ]);
     setWeight("");
@@ -212,7 +213,8 @@ export default function GymScreen() {
                 <Text className="text-xl font-semibold tracking-[-0.6px] text-black" numberOfLines={1}>
                   {item.activity}
                 </Text>
-                <Text className="mt-1 text-base text-[#808080]">{item.weight} kg</Text>
+                <Text className="mt-1 text-base text-[#808080]">{item.date}</Text>
+                <Text className="mt-1 text-sm font-semibold text-[#4a53ff]">{item.weight} kg</Text>
               </View>
               <Text className="shrink-0 text-3xl font-normal tracking-[-1px] text-black">{item.reps}</Text>
             </View>
@@ -221,4 +223,12 @@ export default function GymScreen() {
       </View>
     </ScrollView>
   );
+}
+
+function formatDateLabel(date: Date) {
+  return date.toLocaleDateString("en-US", {
+    day: "numeric",
+    month: "short",
+    year: "numeric"
+  });
 }

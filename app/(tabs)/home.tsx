@@ -114,12 +114,9 @@ export default function DashboardScreen() {
   return (
     <ScrollView className="flex-1 bg-white px-5 pt-14" contentContainerStyle={{ paddingBottom: 120 }}>
       <View className="mb-7 flex-row items-start justify-between">
-        <View className="flex-1 pr-4">
+        <View className="flex-1">
           <Text className="text-sm font-semibold uppercase tracking-widest text-[#808080]">Xpirit Lab</Text>
           <Text className="mt-3 text-5xl font-normal leading-[44px] tracking-[-2px] text-black">Your performance pulse.</Text>
-        </View>
-        <View className="rounded-full bg-black px-4 py-2">
-          <Text className="text-sm font-semibold uppercase tracking-widest text-white">Today</Text>
         </View>
       </View>
 
