@@ -24,6 +24,8 @@ const oldSessions = [
 
 export default function DashboardScreen() {
   const [dashboardSnapshot, setDashboardSnapshot] = useState<DashboardSnapshot | null>(null);
+  const [gpsFeedback, setGpsFeedback] = useState<string | null>(null);
+  const [isRunActionPending, setIsRunActionPending] = useState(false);
   const [runSnapshot, setRunSnapshot] = useState(UnifiedDataService.getLiveRunSnapshot());
   const [latestRun, setLatestRun] = useState({
     distanceMeters: 5800,
@@ -56,35 +58,58 @@ export default function DashboardScreen() {
   };
 
   const toggleRunTracking = async () => {
+    if (isRunActionPending) {
+      return;
+    }
+
+    setGpsFeedback(null);
+    setIsRunActionPending(true);
+
     if (runSnapshot.isTracking) {
       AmplitudeService.track("live_run_end_pressed", {
         distance_meters: runSnapshot.distanceMeters,
         duration_seconds: runSnapshot.durationSeconds
       });
-      const workout = await UnifiedDataService.stopLiveRun();
 
-      if (workout) {
-        AmplitudeService.track("live_run_saved", {
-          distance_meters: workout.distanceMeters,
-          duration_seconds: workout.durationSeconds,
-          pace_seconds_per_km: workout.paceSecondsPerKm
-        });
-        setLatestRun({
-          distanceMeters: workout.distanceMeters,
-          durationSeconds: workout.durationSeconds,
-          paceSecondsPerKm: workout.paceSecondsPerKm
-        });
-        void refreshDashboardSnapshot();
+      try {
+        const workout = await UnifiedDataService.stopLiveRun();
+
+        if (workout) {
+          AmplitudeService.track("live_run_saved", {
+            distance_meters: workout.distanceMeters,
+            duration_seconds: workout.durationSeconds,
+            pace_seconds_per_km: workout.paceSecondsPerKm
+          });
+          setLatestRun({
+            distanceMeters: workout.distanceMeters,
+            durationSeconds: workout.durationSeconds,
+            paceSecondsPerKm: workout.paceSecondsPerKm
+          });
+          setGpsFeedback("Run saved. Sync continues in the background.");
+          void refreshDashboardSnapshot();
+        }
+      } catch (error) {
+        setGpsFeedback(error instanceof Error ? error.message : "The run could not be stopped.");
+      } finally {
+        setRunSnapshot(UnifiedDataService.getLiveRunSnapshot());
+        setIsRunActionPending(false);
       }
-
-      setRunSnapshot(UnifiedDataService.getLiveRunSnapshot());
       return;
     }
 
     AmplitudeService.track("live_run_start_pressed");
-    const snapshot = await UnifiedDataService.startLiveRun();
-    setRunSnapshot(snapshot);
+    try {
+      const snapshot = await UnifiedDataService.startLiveRun();
+      setRunSnapshot(snapshot);
+      setGpsFeedback("Live GPS is active. Keep Xpirit open for the most accurate live pace.");
+    } catch (error) {
+      setGpsFeedback(error instanceof Error ? error.message : "Location permission is required to start Live GPS.");
+    } finally {
+      setIsRunActionPending(false);
+    }
   };
+
+  const heroRun = runSnapshot.isTracking ? runSnapshot : latestRun;
 
   return (
     <ScrollView className="flex-1 bg-white px-5 pt-14" contentContainerStyle={{ paddingBottom: 120 }}>
@@ -100,20 +125,20 @@ export default function DashboardScreen() {
 
       <View className="overflow-hidden rounded-[24px] bg-black p-6">
         <View className="absolute right-[-60px] top-[-70px] h-44 w-44 rounded-full bg-[#4a53ff] opacity-35" />
-        <Text className="text-sm font-semibold uppercase tracking-widest text-[#999999]">Latest Run</Text>
+        <Text className="text-sm font-semibold uppercase tracking-widest text-[#999999]">{runSnapshot.isTracking ? "Live Run" : "Latest Run"}</Text>
         <View className="mt-5 flex-row items-end justify-between">
           <View>
-            <Text className="text-6xl font-normal tracking-[-2px] text-white">{(latestRun.distanceMeters / 1000).toFixed(1)}</Text>
+            <Text className="text-6xl font-normal tracking-[-2px] text-white">{(heroRun.distanceMeters / 1000).toFixed(2)}</Text>
             <Text className="mt-1 text-base text-[#999999]">km covered</Text>
           </View>
           <View className="items-end">
-            <Text className="text-4xl font-normal tracking-[-1px] text-white">{formatDuration(latestRun.durationSeconds)}</Text>
+            <Text className="text-4xl font-normal tracking-[-1px] text-white">{formatDuration(heroRun.durationSeconds)}</Text>
             <Text className="mt-1 text-base text-[#999999]">duration</Text>
           </View>
         </View>
-        <Text className="mt-4 text-base font-semibold text-[#4a53ff]">{formatPace(latestRun.paceSecondsPerKm)} average pace</Text>
+        <Text className="mt-4 text-base font-semibold text-[#4a53ff]">{formatPace(heroRun.paceSecondsPerKm)} average pace</Text>
         <View className="mt-6 h-2 overflow-hidden rounded-full bg-[#191919]">
-          <View className="h-full w-[72%] rounded-full bg-[#4a53ff]" />
+          <View className={`h-full rounded-full bg-[#4a53ff] ${runSnapshot.isTracking ? "w-[42%]" : "w-[72%]"}`} />
         </View>
       </View>
 
@@ -201,9 +226,15 @@ export default function DashboardScreen() {
           <Text className="mt-2 text-3xl font-semibold text-white">{formatDuration(runSnapshot.durationSeconds)}</Text>
         </View>
 
-        <Pressable className="mt-5 rounded-full bg-[#4a53ff] px-6 py-4" onPress={toggleRunTracking}>
-          <Text className="text-center text-sm font-semibold uppercase tracking-widest text-white">
-            {runSnapshot.isTracking ? "End Run" : "Start Live Run"}
+        {gpsFeedback ? <Text className="mt-4 text-sm leading-5 text-[#b5b5bd]">{gpsFeedback}</Text> : null}
+
+        <Pressable
+          className={`mt-5 rounded-full px-6 py-4 ${runSnapshot.isTracking ? "bg-white" : "bg-[#4a53ff]"} ${isRunActionPending ? "opacity-70" : ""}`}
+          disabled={isRunActionPending}
+          onPress={toggleRunTracking}
+        >
+          <Text className={`text-center text-sm font-semibold uppercase tracking-widest ${runSnapshot.isTracking ? "text-black" : "text-white"}`}>
+            {isRunActionPending ? "Working..." : runSnapshot.isTracking ? "End Run" : "Start Live Run"}
           </Text>
         </Pressable>
       </View>

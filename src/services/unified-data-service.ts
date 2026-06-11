@@ -1,5 +1,6 @@
 import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
+import { Platform } from "react-native";
 
 import { saveWorkoutToNativeHealth, type UnifiedWorkout } from "@/services/health-workout-writer";
 import { XpiritDataService } from "@/services/xpirit-data-service";
@@ -16,6 +17,7 @@ type GpsPoint = {
 
 type LiveSession = {
   distanceMeters: number;
+  foregroundSubscription?: Location.LocationSubscription | null;
   id: string;
   points: GpsPoint[];
   startedAt: number;
@@ -57,31 +59,47 @@ export const UnifiedDataService = {
 
     activeSession = {
       distanceMeters: 0,
+      foregroundSubscription: null,
       id: `run-${Date.now()}`,
       points: [],
       startedAt: Date.now()
     };
 
-    await Location.startLocationUpdatesAsync(GPS_TASK_NAME, {
-      accuracy: Location.Accuracy.BestForNavigation,
-      activityType: Location.ActivityType.Fitness,
-      deferredUpdatesDistance: MIN_DISTANCE_INTERVAL_METERS,
-      deferredUpdatesInterval: MIN_TIME_INTERVAL_MS,
-      distanceInterval: MIN_DISTANCE_INTERVAL_METERS,
-      foregroundService: {
-        killServiceOnDestroy: false,
-        notificationBody: "Xpirit is tracking your run.",
-        notificationTitle: "Run tracking active"
+    activeSession.foregroundSubscription = await Location.watchPositionAsync(
+      {
+        accuracy: Location.Accuracy.BestForNavigation,
+        distanceInterval: MIN_DISTANCE_INTERVAL_METERS,
+        timeInterval: MIN_TIME_INTERVAL_MS
       },
-      pausesUpdatesAutomatically: false,
-      showsBackgroundLocationIndicator: true,
-      timeInterval: MIN_TIME_INTERVAL_MS
-    });
+      appendLocation
+    );
 
-    const currentLocation = await Location.getCurrentPositionAsync({
-      accuracy: Location.Accuracy.BestForNavigation
-    });
-    appendLocation(currentLocation);
+    if (Platform.OS !== "web") {
+      await Location.startLocationUpdatesAsync(GPS_TASK_NAME, {
+        accuracy: Location.Accuracy.BestForNavigation,
+        activityType: Location.ActivityType.Fitness,
+        deferredUpdatesDistance: MIN_DISTANCE_INTERVAL_METERS,
+        deferredUpdatesInterval: MIN_TIME_INTERVAL_MS,
+        distanceInterval: MIN_DISTANCE_INTERVAL_METERS,
+        foregroundService: {
+          killServiceOnDestroy: false,
+          notificationBody: "Xpirit is tracking your run.",
+          notificationTitle: "Run tracking active"
+        },
+        pausesUpdatesAutomatically: false,
+        showsBackgroundLocationIndicator: true,
+        timeInterval: MIN_TIME_INTERVAL_MS
+      });
+    }
+
+    try {
+      const currentLocation = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.BestForNavigation
+      });
+      appendLocation(currentLocation);
+    } catch {
+      // The live timer can still start while the first GPS fix is warming up.
+    }
 
     return getLiveRunSnapshot();
   },
@@ -93,10 +111,19 @@ export const UnifiedDataService = {
       return null;
     }
 
-    const hasStarted = await Location.hasStartedLocationUpdatesAsync(GPS_TASK_NAME);
+    activeSession = null;
+    session.foregroundSubscription?.remove();
 
-    if (hasStarted) {
-      await Location.stopLocationUpdatesAsync(GPS_TASK_NAME);
+    if (Platform.OS !== "web") {
+      try {
+        const hasStarted = await Location.hasStartedLocationUpdatesAsync(GPS_TASK_NAME);
+
+        if (hasStarted) {
+          await Location.stopLocationUpdatesAsync(GPS_TASK_NAME);
+        }
+      } catch {
+        // Stopping the foreground session is enough to unblock the UI.
+      }
     }
 
     const endedAt = Date.now();
@@ -113,9 +140,7 @@ export const UnifiedDataService = {
       type: "run"
     };
 
-    activeSession = null;
-    await saveWorkoutToNativeHealth(workout);
-    await XpiritDataService.saveGpsWorkout(workout);
+    void persistCompletedWorkout(workout);
 
     return workout;
   },
@@ -143,6 +168,10 @@ function appendLocation(location: Location.LocationObject) {
   }
 
   activeSession.points.push(point);
+}
+
+async function persistCompletedWorkout(workout: UnifiedWorkout) {
+  await Promise.allSettled([saveWorkoutToNativeHealth(workout), XpiritDataService.saveGpsWorkout(workout)]);
 }
 
 function getLiveRunSnapshot() {
