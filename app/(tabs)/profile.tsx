@@ -90,8 +90,10 @@ export default function ProfileScreen() {
           <View className="h-16 w-16 items-center justify-center rounded-full bg-black">
             <Text className="text-2xl font-semibold text-white">A</Text>
           </View>
-          <View>
-            <Text className="text-5xl font-normal leading-[44px] tracking-[-2px] text-black">Profile</Text>
+          <View className="min-w-0 flex-1">
+            <Text className="text-5xl font-normal leading-[44px] tracking-[-2px] text-black" numberOfLines={1} adjustsFontSizeToFit>
+              Profile
+            </Text>
             <Text className="mt-1 text-base text-[#808080]">Xpirit athlete</Text>
           </View>
         </View>
@@ -110,18 +112,20 @@ export default function ProfileScreen() {
         </View>
 
         <View className="mt-5 rounded-[24px] bg-[#f3f5f9] p-5">
-          <View className="flex-row items-center justify-between">
+          <View className="flex-row items-center justify-between gap-3">
             <Text className="text-xl font-semibold tracking-[-0.6px] text-black">History</Text>
-            <Text className="text-base text-[#808080]">Last 7 days</Text>
+            <Text className="shrink text-right text-base text-[#808080]">Last 7 days</Text>
           </View>
           <View className="mt-4 gap-3">
             {history.map((item) => (
-              <View key={item.title} className="flex-row items-center justify-between rounded-[24px] bg-white p-4">
-                <View>
-                  <Text className="text-base font-semibold text-black">{item.title}</Text>
+              <View key={item.title} className="flex-row items-center justify-between gap-3 rounded-[24px] bg-white p-4">
+                <View className="min-w-0 flex-1">
+                  <Text className="text-base font-semibold text-black" numberOfLines={1}>
+                    {item.title}
+                  </Text>
                   <Text className="mt-1 text-base text-[#808080]">{item.when}</Text>
                 </View>
-                <Text className="text-xl font-semibold tracking-[-0.6px] text-black">{item.metric}</Text>
+                <Text className="shrink-0 text-right text-xl font-semibold tracking-[-0.6px] text-black">{item.metric}</Text>
               </View>
             ))}
           </View>
@@ -130,11 +134,11 @@ export default function ProfileScreen() {
         <View className="mt-5 rounded-[24px] bg-[#f3f5f9] p-5">
           <Text className="text-xl font-semibold tracking-[-0.6px] text-black">Information</Text>
           <View className="mt-4 gap-3">
-            <View className="flex-row justify-between">
+            <View className="flex-row justify-between gap-4">
               <Text className="text-base text-[#808080]">Integrations</Text>
-              <Text className="text-base font-semibold text-black">Native health pending</Text>
+              <Text className="min-w-0 flex-1 text-right text-base font-semibold text-black">Native health pending</Text>
             </View>
-            <View className="flex-row justify-between">
+            <View className="flex-row justify-between gap-4">
               <Text className="text-base text-[#808080]">Plan</Text>
               <Text className="text-base font-semibold text-black">Free</Text>
             </View>
