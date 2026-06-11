@@ -34,6 +34,9 @@
         "FOREGROUND_SERVICE_LOCATION",
         "com.android.vending.BILLING"
       ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
     }
   }
 }
