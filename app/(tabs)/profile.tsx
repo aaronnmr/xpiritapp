@@ -5,10 +5,10 @@ import { PremiumCheckoutModal } from "../../src/components/premium-checkout-moda
 import { AmplitudeService } from "../../src/services/amplitude-service";
 import { RevenueCatService, type RevenueCatProductId } from "../../src/services/revenuecat-service";
 
-const history = [
-  { metric: "5.8 km", title: "Outdoor Run", when: "Today" },
-  { metric: "1,120 kg", title: "Gym Volume", when: "Yesterday" },
-  { metric: "42 min", title: "Zone 2", when: "Monday" }
+const achievements = [
+  { detail: "6 day active streak", title: "Consistency" },
+  { detail: "First live GPS run saved", title: "Road Ready" },
+  { detail: "3 strength sessions this week", title: "Strength Block" }
 ];
 
 export default function ProfileScreen() {
@@ -113,19 +113,19 @@ export default function ProfileScreen() {
 
         <View className="mt-5 rounded-[24px] bg-[#f3f5f9] p-5">
           <View className="flex-row items-center justify-between gap-3">
-            <Text className="text-xl font-semibold tracking-[-0.6px] text-black">History</Text>
-            <Text className="shrink text-right text-base text-[#808080]">Last 7 days</Text>
+            <Text className="text-xl font-semibold tracking-[-0.6px] text-black">Achievements</Text>
+            <Text className="shrink text-right text-base text-[#808080]">Active now</Text>
           </View>
           <View className="mt-4 gap-3">
-            {history.map((item) => (
+            {achievements.map((item) => (
               <View key={item.title} className="flex-row items-center justify-between gap-3 rounded-[24px] bg-white p-4">
                 <View className="min-w-0 flex-1">
                   <Text className="text-base font-semibold text-black" numberOfLines={1}>
                     {item.title}
                   </Text>
-                  <Text className="mt-1 text-base text-[#808080]">{item.when}</Text>
+                  <Text className="mt-1 text-base text-[#808080]">{item.detail}</Text>
                 </View>
-                <Text className="shrink-0 text-right text-xl font-semibold tracking-[-0.6px] text-black">{item.metric}</Text>
+                <View className="h-3 w-3 rounded-full bg-[#4a53ff]" />
               </View>
             ))}
           </View>

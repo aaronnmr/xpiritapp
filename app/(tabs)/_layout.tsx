@@ -5,8 +5,8 @@ import { Pressable, Text, useWindowDimensions, View } from "react-native";
 const tabs = {
   home: { icon: "analytics", label: "Home" },
   gym: { icon: "fitness", label: "Gym" },
-  profile: { icon: "person", label: "Profile" },
-  race: { icon: "speedometer", label: "Race" }
+  race: { icon: "speedometer", label: "Race" },
+  profile: { icon: "person", label: "Profile" }
 } satisfies Record<string, { icon: keyof typeof Ionicons.glyphMap; label: string }>;
 
 function BubbleTabBar({ navigation, state }: { navigation: any; state: any }) {
@@ -86,8 +86,8 @@ export default function TabsLayout() {
     >
       <Tabs.Screen name="home" options={{ title: "Home" }} />
       <Tabs.Screen name="gym" options={{ title: "Gym" }} />
-      <Tabs.Screen name="profile" options={{ title: "Profile" }} />
       <Tabs.Screen name="race" options={{ title: "Race" }} />
+      <Tabs.Screen name="profile" options={{ title: "Profile" }} />
     </Tabs>
   );
 }

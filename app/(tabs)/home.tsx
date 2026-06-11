@@ -16,12 +16,6 @@ const weeklySessions = [
   { day: "S", height: "h-14", active: false }
 ];
 
-const oldSessions = [
-  { distance: "7.2 km", pace: "5:08", title: "Tempo Run" },
-  { distance: "4.1 km", pace: "5:34", title: "Easy Run" },
-  { distance: "9.6 km", pace: "5:21", title: "Long Run" }
-];
-
 export default function DashboardScreen() {
   const [dashboardSnapshot, setDashboardSnapshot] = useState<DashboardSnapshot | null>(null);
   const [gpsFeedback, setGpsFeedback] = useState<string | null>(null);
@@ -120,7 +114,7 @@ export default function DashboardScreen() {
         </View>
       </View>
 
-      <View className="overflow-hidden rounded-[24px] bg-black p-6">
+      <Pressable className="overflow-hidden rounded-[24px] bg-black p-6" onPress={() => router.push("/race")}>
         <View className="absolute right-[-60px] top-[-70px] h-44 w-44 rounded-full bg-[#4a53ff] opacity-35" />
         <Text className="text-sm font-semibold uppercase tracking-widest text-[#999999]">{runSnapshot.isTracking ? "Live Run" : "Latest Run"}</Text>
         <View className="mt-5 flex-row items-end justify-between">
@@ -137,7 +131,7 @@ export default function DashboardScreen() {
         <View className="mt-6 h-2 overflow-hidden rounded-full bg-[#191919]">
           <View className={`h-full rounded-full bg-[#4a53ff] ${runSnapshot.isTracking ? "w-[42%]" : "w-[72%]"}`} />
         </View>
-      </View>
+      </Pressable>
 
       <View className="mt-4 flex-row gap-3">
         <Pressable className="flex-1 rounded-[24px] bg-[#f3f5f9] p-5" onPress={() => router.push("/gym")}>
@@ -162,33 +156,6 @@ export default function DashboardScreen() {
             <View key={`${item.day}-${index}`} className="items-center gap-2">
               <View className={`w-7 rounded-full ${item.height} ${item.active ? "bg-[#4a53ff]" : "bg-[#e5e7eb]"}`} />
               <Text className={`text-xs font-semibold ${item.active ? "text-black" : "text-[#999999]"}`}>{item.day}</Text>
-            </View>
-          ))}
-        </View>
-      </View>
-
-      <View className="mt-4 rounded-[24px] bg-[#f3f5f9] p-5">
-        <View className="flex-row items-center justify-between">
-          <Text className="text-xl font-semibold tracking-[-0.6px] text-black">Previous Sessions</Text>
-          <Text className="text-sm font-semibold uppercase tracking-widest text-[#4a53ff]">View All</Text>
-        </View>
-        <View className="mt-4 gap-3">
-          {(dashboardSnapshot?.previousRuns.length
-            ? dashboardSnapshot.previousRuns.map((session) => ({
-                distance: formatDistance(session.distanceMeters),
-                pace: formatPace(session.paceSecondsPerKm).replace(" /km", ""),
-                title: session.name
-              }))
-            : oldSessions
-          ).map((session) => (
-            <View key={`${session.title}-${session.distance}`} className="flex-row items-center justify-between rounded-[24px] bg-white p-4">
-              <View>
-                <Text className="text-base font-semibold text-black">{session.title}</Text>
-                <Text className="mt-1 text-base text-[#808080]">{session.distance}</Text>
-              </View>
-              <View className="rounded-full border border-[#e5e7eb] px-4 py-2">
-                <Text className="text-sm font-semibold text-black">{session.pace} /km</Text>
-              </View>
             </View>
           ))}
         </View>
