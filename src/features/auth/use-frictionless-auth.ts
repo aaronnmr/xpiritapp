@@ -15,7 +15,7 @@ import { XpiritDataService } from "@/services/xpirit-data-service";
 
 WebBrowser.maybeCompleteAuthSession();
 
-type AuthProvider = "apple" | "google";
+type AuthProvider = "apple" | "email" | "google";
 type AuthStatus = "idle" | "authenticating" | "requesting-health" | "routing";
 
 const googleClientIds = {
@@ -138,6 +138,56 @@ export function useFrictionlessAuth() {
     }
   };
 
+  const signInWithEmail = async (email: string, password: string) => {
+    clearFeedback();
+    AmplitudeService.track("auth_email_pressed", { locale });
+
+    if (!isSupabaseConfigured || !supabase) {
+      setErrorMessage("Supabase is not configured for authentication.");
+      return;
+    }
+
+    setStatus("authenticating");
+
+    try {
+      const normalizedEmail = email.trim().toLowerCase();
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password
+      });
+
+      if (signInData.user) {
+        await completeAuthenticatedSession("email", signInData.user.id);
+        return;
+      }
+
+      if (signInError) {
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email: normalizedEmail,
+          options: {
+            data: {
+              locale
+            }
+          },
+          password
+        });
+
+        if (signUpError) {
+          throw signUpError;
+        }
+
+        if (signUpData.user) {
+          await completeAuthenticatedSession("email", signUpData.user.id);
+          return;
+        }
+      }
+
+      throw new Error("Email authentication could not be completed.");
+    } catch (error) {
+      handleAuthError(error);
+    }
+  };
+
   const finishSupabaseIdTokenAuth = async ({
     accessToken,
     idToken,
@@ -167,17 +217,25 @@ export function useFrictionlessAuth() {
     }
 
     if (data.user?.id) {
-      AmplitudeService.identifyUser(data.user.id, { locale, provider });
-      AmplitudeService.track("auth_completed", { locale, provider });
-      await XpiritDataService.ensureProfile(locale);
-      await XpiritDataService.registerDevice(`expo-${Platform.OS}`, {
-        auth_provider: provider,
-        locale
-      });
-      await XpiritDataService.trackEvent("auth_completed", "auth", { locale, provider });
-      await RevenueCatService.configure(data.user.id);
-      await supabase.from("profiles").update({ locale, revenuecat_app_user_id: data.user.id }).eq("id", data.user.id);
+      await completeAuthenticatedSession(provider, data.user.id);
     }
+  };
+
+  const completeAuthenticatedSession = async (provider: AuthProvider, userId: string) => {
+    if (!supabase) {
+      throw new Error("Supabase is not configured for authentication.");
+    }
+
+    AmplitudeService.identifyUser(userId, { locale, provider });
+    AmplitudeService.track("auth_completed", { locale, provider });
+    await XpiritDataService.ensureProfile(locale);
+    await XpiritDataService.registerDevice(`expo-${Platform.OS}`, {
+      auth_provider: provider,
+      locale
+    });
+    await XpiritDataService.trackEvent("auth_completed", "auth", { locale, provider });
+    await RevenueCatService.configure(userId);
+    await supabase.from("profiles").update({ locale, revenuecat_app_user_id: userId }).eq("id", userId);
 
     setStatus("requesting-health");
     const healthPermissions = await requestNativeHealthRepositoryPermissions();
@@ -212,6 +270,7 @@ export function useFrictionlessAuth() {
     errorMessage,
     isBusy: status !== "idle",
     signInWithApple,
+    signInWithEmail,
     signInWithGoogle,
     status
   };

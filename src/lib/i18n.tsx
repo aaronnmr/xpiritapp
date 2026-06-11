@@ -6,10 +6,14 @@ export type AppLocale = "en" | "es" | "de";
 
 type TranslationKey =
   | "auth.apple"
-  | "auth.card.body"
-  | "auth.card.title"
+  | "auth.email"
+  | "auth.emailCta"
+  | "auth.emailHelper"
+  | "auth.emailRequired"
   | "auth.google"
   | "auth.helper"
+  | "auth.orGoogle"
+  | "auth.password"
   | "auth.status.authenticating"
   | "auth.status.requestingHealth"
   | "auth.status.routing"
@@ -28,11 +32,14 @@ const STORAGE_KEY = "xpirit.locale.override";
 const translations: Record<AppLocale, Record<TranslationKey, string>> = {
   de: {
     "auth.apple": "Mit Apple fortfahren",
-    "auth.card.body":
-      "Einmal anmelden. Xpirit verknupft deine sichere Supabase-Identitat, erstellt dein kostenloses Profil und fragt danach nach biometrischen Berechtigungen.",
-    "auth.card.title": "Reibungsloser Zugang",
+    "auth.email": "E-Mail",
+    "auth.emailCta": "Mit E-Mail fortfahren",
+    "auth.emailHelper": "Melde dich an oder erstelle ein Konto mit E-Mail und Passwort.",
+    "auth.emailRequired": "Gib deine E-Mail und dein Passwort ein.",
     "auth.google": "Mit Google fortfahren",
     "auth.helper": "OAuth erstellt dein privates Xpirit-Profil und bereitet die biometrische Synchronisierung vor.",
+    "auth.orGoogle": "Oder weiter mit",
+    "auth.password": "Passwort",
     "auth.status.authenticating": "Identitat wird gesichert",
     "auth.status.requestingHealth": "Zugriff auf Gesundheitsdaten wird angefragt",
     "auth.status.routing": "Dashboard wird aufgebaut",
@@ -41,11 +48,14 @@ const translations: Record<AppLocale, Record<TranslationKey, string>> = {
   },
   en: {
     "auth.apple": "Continue with Apple",
-    "auth.card.body":
-      "Sign in once. Xpirit links your secure Supabase identity, creates your free profile, then asks for biometric repository permissions.",
-    "auth.card.title": "Frictionless access",
+    "auth.email": "Email",
+    "auth.emailCta": "Continue with Email",
+    "auth.emailHelper": "Sign in or create an account with your email and password.",
+    "auth.emailRequired": "Enter your email and password.",
     "auth.google": "Continue with Google",
     "auth.helper": "OAuth creates your private Xpirit profile and prepares biometric sync.",
+    "auth.orGoogle": "Or continue with",
+    "auth.password": "Password",
     "auth.status.authenticating": "Securing identity",
     "auth.status.requestingHealth": "Requesting health repository access",
     "auth.status.routing": "Building your dashboard",
@@ -54,11 +64,14 @@ const translations: Record<AppLocale, Record<TranslationKey, string>> = {
   },
   es: {
     "auth.apple": "Continuar con Apple",
-    "auth.card.body":
-      "Inicia sesion una vez. Xpirit conecta tu identidad segura de Supabase, crea tu perfil gratuito y despues solicita permisos biometricos.",
-    "auth.card.title": "Acceso sin friccion",
+    "auth.email": "Email",
+    "auth.emailCta": "Continuar con Email",
+    "auth.emailHelper": "Inicia sesion o crea una cuenta con tu email y contrasena.",
+    "auth.emailRequired": "Introduce tu email y contrasena.",
     "auth.google": "Continuar con Google",
     "auth.helper": "OAuth crea tu perfil privado de Xpirit y prepara la sincronizacion biometrica.",
+    "auth.orGoogle": "O continua con",
+    "auth.password": "Contrasena",
     "auth.status.authenticating": "Protegiendo identidad",
     "auth.status.requestingHealth": "Solicitando acceso a datos de salud",
     "auth.status.routing": "Creando tu dashboard",

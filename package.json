@@ -6,6 +6,8 @@
   "scripts": {
     "postinstall": "node scripts/patch-nativewind-worklets.js",
     "start": "expo start",
+    "build": "expo export -p web",
+    "build:web": "expo export -p web",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
