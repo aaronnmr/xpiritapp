@@ -17,10 +17,11 @@ type GpsPoint = {
 
 type LiveSession = {
   distanceMeters: number;
-  foregroundSubscription?: Location.LocationSubscription | null;
+  foregroundSubscription?: { remove: () => void } | null;
   id: string;
   points: GpsPoint[];
   startedAt: number;
+  webWatchId?: number | null;
 };
 
 let activeSession: LiveSession | null = null;
@@ -36,6 +37,10 @@ TaskManager.defineTask(GPS_TASK_NAME, async ({ data, error }) => {
 
 export const UnifiedDataService = {
   async requestPermissions() {
+    if (Platform.OS === "web") {
+      return requestWebLocationPermissions();
+    }
+
     const foreground = await Location.requestForegroundPermissionsAsync();
 
     if (foreground.status !== "granted") {
@@ -51,6 +56,10 @@ export const UnifiedDataService = {
   },
 
   async startLiveRun() {
+    if (Platform.OS === "web") {
+      return startWebLiveRun();
+    }
+
     const permissions = await this.requestPermissions();
 
     if (!permissions.foreground) {
@@ -62,7 +71,8 @@ export const UnifiedDataService = {
       foregroundSubscription: null,
       id: `run-${Date.now()}`,
       points: [],
-      startedAt: Date.now()
+      startedAt: Date.now(),
+      webWatchId: null
     };
 
     activeSession.foregroundSubscription = await Location.watchPositionAsync(
@@ -114,6 +124,10 @@ export const UnifiedDataService = {
     activeSession = null;
     session.foregroundSubscription?.remove();
 
+    if (typeof session.webWatchId === "number" && typeof navigator !== "undefined" && navigator.geolocation) {
+      navigator.geolocation.clearWatch(session.webWatchId);
+    }
+
     if (Platform.OS !== "web") {
       try {
         const hasStarted = await Location.hasStartedLocationUpdatesAsync(GPS_TASK_NAME);
@@ -156,11 +170,77 @@ function appendLocation(location: Location.LocationObject) {
     return;
   }
 
-  const point = {
+  appendGpsPoint({
     latitude: location.coords.latitude,
     longitude: location.coords.longitude,
     timestamp: location.timestamp
+  });
+}
+
+async function requestWebLocationPermissions() {
+  if (typeof navigator === "undefined" || !navigator.geolocation) {
+    return { background: false, foreground: false };
+  }
+
+  return new Promise<{ background: boolean; foreground: boolean }>((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      () => resolve({ background: false, foreground: true }),
+      () => resolve({ background: false, foreground: false }),
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 10000
+      }
+    );
+  });
+}
+
+async function startWebLiveRun() {
+  const permissions = await requestWebLocationPermissions();
+
+  if (!permissions.foreground || typeof navigator === "undefined" || !navigator.geolocation) {
+    throw new Error("Location permission is required to track a run.");
+  }
+
+  activeSession = {
+    distanceMeters: 0,
+    foregroundSubscription: null,
+    id: `run-${Date.now()}`,
+    points: [],
+    startedAt: Date.now(),
+    webWatchId: null
   };
+
+  activeSession.webWatchId = navigator.geolocation.watchPosition(
+    appendWebLocation,
+    () => undefined,
+    {
+      enableHighAccuracy: true,
+      maximumAge: 0,
+      timeout: 10000
+    }
+  );
+
+  return getLiveRunSnapshot();
+}
+
+function appendWebLocation(position: GeolocationPosition) {
+  if (!activeSession) {
+    return;
+  }
+
+  appendGpsPoint({
+    latitude: position.coords.latitude,
+    longitude: position.coords.longitude,
+    timestamp: position.timestamp
+  });
+}
+
+function appendGpsPoint(point: GpsPoint) {
+  if (!activeSession) {
+    return;
+  }
+
   const previousPoint = activeSession.points.at(-1);
 
   if (previousPoint) {
