@@ -23,6 +23,7 @@ const googleClientIds = {
   iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
   webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID
 };
+const webRedirectUrl = process.env.EXPO_PUBLIC_APP_URL;
 
 export function useFrictionlessAuth() {
   const { locale } = useI18n();
@@ -154,7 +155,7 @@ export function useFrictionlessAuth() {
             access_type: "offline",
             prompt: "select_account"
           },
-          redirectTo: window.location.origin
+          redirectTo: webRedirectUrl ?? window.location.origin
         },
         provider: "google"
       });
