@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "Xpirit",
+    "slug": "xpirit",
+    "scheme": "xpirit",
+    "userInterfaceStyle": "automatic",
+    "plugins": [
+      "expo-apple-authentication",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Xpirit uses your location to track live runs, pace, distance, and duration.",
+          "locationAlwaysPermission": "Xpirit keeps tracking your run when the screen is locked.",
+          "locationWhenInUsePermission": "Xpirit uses your location while you track a run."
+        }
+      ],
+      "expo-web-browser"
+    ],
+    "ios": {
+      "bundleIdentifier": "com.xpirit.app",
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "location"
+        ]
+      }
+    },
+    "android": {
+      "package": "com.xpirit.app",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
+        "com.android.vending.BILLING"
+      ]
+    }
+  }
+}
