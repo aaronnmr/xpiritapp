@@ -5,6 +5,7 @@ import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 
+import { I18nProvider } from "@/lib/i18n";
 import { queryClient } from "@/lib/query-client";
 import { AmplitudeService } from "@/services/amplitude-service";
 
@@ -14,14 +15,16 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <StatusBar style="light" />
-      <Stack
-        screenOptions={{
-          contentStyle: { backgroundColor: "#050507" },
-          headerShown: false
-        }}
-      />
-    </QueryClientProvider>
+    <I18nProvider>
+      <QueryClientProvider client={queryClient}>
+        <StatusBar style="light" />
+        <Stack
+          screenOptions={{
+            contentStyle: { backgroundColor: "#050507" },
+            headerShown: false
+          }}
+        />
+      </QueryClientProvider>
+    </I18nProvider>
   );
 }

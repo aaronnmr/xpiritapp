@@ -6,6 +6,7 @@ import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Platform } from "react-native";
 
+import { useI18n } from "@/lib/i18n";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { AmplitudeService } from "@/services/amplitude-service";
 import { requestNativeHealthRepositoryPermissions } from "@/services/health-workout-writer";
@@ -24,6 +25,7 @@ const googleClientIds = {
 };
 
 export function useFrictionlessAuth() {
+  const { locale } = useI18n();
   const [appleAvailable, setAppleAvailable] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [status, setStatus] = useState<AuthStatus>("idle");
@@ -165,15 +167,16 @@ export function useFrictionlessAuth() {
     }
 
     if (data.user?.id) {
-      AmplitudeService.identifyUser(data.user.id, { provider });
-      AmplitudeService.track("auth_completed", { provider });
-      await XpiritDataService.ensureProfile();
+      AmplitudeService.identifyUser(data.user.id, { locale, provider });
+      AmplitudeService.track("auth_completed", { locale, provider });
+      await XpiritDataService.ensureProfile(locale);
       await XpiritDataService.registerDevice(`expo-${Platform.OS}`, {
-        auth_provider: provider
+        auth_provider: provider,
+        locale
       });
-      await XpiritDataService.trackEvent("auth_completed", "auth", { provider });
+      await XpiritDataService.trackEvent("auth_completed", "auth", { locale, provider });
       await RevenueCatService.configure(data.user.id);
-      await supabase.from("profiles").update({ revenuecat_app_user_id: data.user.id }).eq("id", data.user.id);
+      await supabase.from("profiles").update({ locale, revenuecat_app_user_id: data.user.id }).eq("id", data.user.id);
     }
 
     setStatus("requesting-health");

@@ -44,7 +44,7 @@ export type ReportCardInput = {
 };
 
 export const XpiritDataService = {
-  async ensureProfile() {
+  async ensureProfile(locale = "en") {
     const user = await getCurrentUser();
 
     if (!user || !supabase) {
@@ -61,6 +61,7 @@ export const XpiritDataService = {
         full_name: metadata.full_name ?? displayName,
         id: user.id,
         last_active_at: new Date().toISOString(),
+        locale,
         revenuecat_app_user_id: user.id
       },
       { onConflict: "id" }

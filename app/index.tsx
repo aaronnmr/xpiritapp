@@ -1,33 +1,32 @@
 import { Ionicons } from "@expo/vector-icons";
 import { ActivityIndicator, Platform, Pressable, Text, View } from "react-native";
 
+import { OnboardingLanguagePicker } from "@/components/onboarding-language-picker";
 import { useFrictionlessAuth } from "@/features/auth/use-frictionless-auth";
-
-const statusCopy = {
-  authenticating: "Securing identity",
-  idle: "OAuth creates your private Xpirit profile and prepares biometric sync.",
-  "requesting-health": "Requesting health repository access",
-  routing: "Building your dashboard"
-};
+import { useI18n } from "@/lib/i18n";
 
 export default function AuthScreen() {
   const { appleAvailable, errorMessage, isBusy, signInWithApple, signInWithGoogle, status } = useFrictionlessAuth();
+  const { t } = useI18n();
+
+  const statusCopy = {
+    authenticating: t("auth.status.authenticating"),
+    idle: t("auth.helper"),
+    "requesting-health": t("auth.status.requestingHealth"),
+    routing: t("auth.status.routing")
+  };
 
   return (
     <View className="flex-1 bg-[#050507] px-6 pb-10 pt-16">
+      <OnboardingLanguagePicker />
       <View className="flex-1 justify-center">
         <Text className="text-[56px] font-normal leading-[54px] tracking-[-2px] text-white">Xpirit</Text>
-        <Text className="mt-5 max-w-[330px] text-lg leading-7 text-[#a7a7ad]">
-          Track your goal. Recover with intent.
-        </Text>
+        <Text className="mt-5 max-w-[330px] text-lg leading-7 text-[#a7a7ad]">{t("auth.subtitle")}</Text>
 
         <View className="mt-10 rounded-[24px] border border-[#24242a] bg-[#0d0d11] p-5">
           <View className="h-2 w-16 rounded-full bg-[#4a53ff]" />
-          <Text className="mt-6 text-2xl font-semibold tracking-[-0.8px] text-white">Frictionless access</Text>
-          <Text className="mt-3 text-base leading-6 text-[#8f8f98]">
-            Sign in once. Xpirit links your secure Supabase identity, creates your free profile, then asks for biometric
-            repository permissions.
-          </Text>
+          <Text className="mt-6 text-2xl font-semibold tracking-[-0.8px] text-white">{t("auth.card.title")}</Text>
+          <Text className="mt-3 text-base leading-6 text-[#8f8f98]">{t("auth.card.body")}</Text>
         </View>
 
         <View className="mt-8 gap-3">
@@ -40,7 +39,7 @@ export default function AuthScreen() {
               onPress={signInWithApple}
             >
               <Ionicons name="logo-apple" size={22} color="#050507" />
-              <Text className="text-sm font-semibold uppercase tracking-widest text-[#050507]">Continue with Apple</Text>
+              <Text className="text-sm font-semibold uppercase tracking-widest text-[#050507]">{t("auth.apple")}</Text>
             </Pressable>
           ) : null}
 
@@ -52,7 +51,7 @@ export default function AuthScreen() {
             onPress={signInWithGoogle}
           >
             <Ionicons name="logo-google" size={21} color="#ffffff" />
-            <Text className="text-sm font-semibold uppercase tracking-widest text-white">Continue with Google</Text>
+            <Text className="text-sm font-semibold uppercase tracking-widest text-white">{t("auth.google")}</Text>
           </Pressable>
         </View>
 
