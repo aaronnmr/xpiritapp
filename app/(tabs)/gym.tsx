@@ -8,11 +8,13 @@ type GymSet = {
   activity: string;
   date: string;
   id: number;
+  isoDate: string;
   reps: string;
   weight: string;
 };
 
 const activities = ["Bench Press", "Squat", "Deadlift", "Pull-Ups"];
+const rangeOptions = ["This week", "Last week", "Last month", "Custom dates"];
 
 function formatSeconds(totalSeconds: number) {
   const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, "0");
@@ -26,9 +28,14 @@ export default function GymScreen() {
   const [weight, setWeight] = useState("");
   const [reps, setReps] = useState("");
   const [sets, setSets] = useState<GymSet[]>([
-    { activity: "Bench Press", date: "Jun 11, 2026", id: 1, reps: "8", weight: "60" },
-    { activity: "Squat", date: "Jun 10, 2026", id: 2, reps: "10", weight: "80" }
+    { activity: "Bench Press", date: "Jun 11, 2026", id: 1, isoDate: "2026-06-11", reps: "8", weight: "60" },
+    { activity: "Squat", date: "Jun 10, 2026", id: 2, isoDate: "2026-06-10", reps: "10", weight: "80" },
+    { activity: "Deadlift", date: "Jun 6, 2026", id: 3, isoDate: "2026-06-06", reps: "5", weight: "110" }
   ]);
+  const [isSetRangeOpen, setIsSetRangeOpen] = useState(false);
+  const [selectedSetRange, setSelectedSetRange] = useState("This week");
+  const [setCustomStart, setSetCustomStart] = useState("");
+  const [setCustomEnd, setSetCustomEnd] = useState("");
   const [workSeconds, setWorkSeconds] = useState("45");
   const [restSeconds, setRestSeconds] = useState("30");
   const [remaining, setRemaining] = useState(45);
@@ -41,6 +48,13 @@ export default function GymScreen() {
     () => sets.reduce((sum, item) => sum + Number(item.weight || 0) * Number(item.reps || 0), 0),
     [sets]
   );
+  const customSetDateError = getCustomDateError(setCustomStart, setCustomEnd);
+  const visibleSets = sets.filter((item) => isInsideRange(item.isoDate, selectedSetRange, setCustomStart, setCustomEnd));
+
+  const selectSetRange = (range: string) => {
+    setSelectedSetRange(range);
+    setIsSetRangeOpen(range === "Custom dates");
+  };
 
   useEffect(() => {
     if (!isRunning) {
@@ -68,7 +82,14 @@ export default function GymScreen() {
     }
 
     setSets((current) => [
-      { activity: selectedActivity, date: formatDateLabel(new Date()), id: Date.now(), reps, weight },
+      {
+        activity: selectedActivity,
+        date: formatDateLabel(new Date()),
+        id: Date.now(),
+        isoDate: formatIsoDate(new Date()),
+        reps,
+        weight
+      },
       ...current
     ]);
     setWeight("");
@@ -203,11 +224,63 @@ export default function GymScreen() {
 
       <View className="mt-5">
         <View className="mb-3 flex-row items-center justify-between gap-3">
-          <Text className="text-xl font-semibold tracking-[-0.6px] text-black">Saved Sets</Text>
-          <Text className="shrink text-right text-base text-[#808080]">{totalVolume} kg volume</Text>
+          <View className="min-w-0 flex-1">
+            <Text className="text-xl font-semibold tracking-[-0.6px] text-black">Saved Sets</Text>
+            <Text className="mt-1 text-base text-[#808080]">{totalVolume} kg volume</Text>
+          </View>
+          <Pressable className="shrink-0 rounded-[300px] bg-[#eef0ff] px-4 py-3" onPress={() => setIsSetRangeOpen((value) => !value)}>
+            <Text className="text-xs font-semibold uppercase tracking-widest text-[#4a53ff]" numberOfLines={1}>
+              {selectedSetRange}
+            </Text>
+          </Pressable>
         </View>
+
+        {isSetRangeOpen ? (
+          <View className="mb-3 rounded-[24px] bg-[#f3f5f9] p-2">
+            {rangeOptions.map((option) => {
+              const isSelected = option === selectedSetRange;
+
+              return (
+                <Pressable
+                  key={option}
+                  className={`rounded-[300px] px-4 py-3 ${isSelected ? "bg-white" : "bg-transparent"}`}
+                  onPress={() => selectSetRange(option)}
+                >
+                  <Text className={`text-sm font-semibold ${isSelected ? "text-black" : "text-[#808080]"}`}>{option}</Text>
+                </Pressable>
+              );
+            })}
+
+            {selectedSetRange === "Custom dates" ? (
+              <>
+                <View className="mt-2 flex-row gap-2 px-1">
+                  <TextInput
+                    className="min-w-0 flex-1 rounded-[24px] bg-white px-4 py-3 text-sm text-black"
+                    keyboardType="numbers-and-punctuation"
+                    maxLength={10}
+                    onChangeText={(value) => setSetCustomStart(formatDateInput(value))}
+                    placeholder="YYYY-MM-DD"
+                    placeholderTextColor="#808080"
+                    value={setCustomStart}
+                  />
+                  <TextInput
+                    className="min-w-0 flex-1 rounded-[24px] bg-white px-4 py-3 text-sm text-black"
+                    keyboardType="numbers-and-punctuation"
+                    maxLength={10}
+                    onChangeText={(value) => setSetCustomEnd(formatDateInput(value))}
+                    placeholder="YYYY-MM-DD"
+                    placeholderTextColor="#808080"
+                    value={setCustomEnd}
+                  />
+                </View>
+                {customSetDateError ? <Text className="px-3 pb-1 pt-2 text-xs font-semibold text-[#d14343]">{customSetDateError}</Text> : null}
+              </>
+            ) : null}
+          </View>
+        ) : null}
+
         <View className="gap-3">
-          {sets.map((item) => (
+          {visibleSets.map((item) => (
             <View key={item.id} className="flex-row items-center justify-between gap-3 rounded-[24px] bg-[#f3f5f9] p-5">
               <View className="min-w-0 flex-1">
                 <Text className="text-xl font-semibold tracking-[-0.6px] text-black" numberOfLines={1}>
@@ -231,4 +304,58 @@ function formatDateLabel(date: Date) {
     month: "short",
     year: "numeric"
   });
+}
+
+function formatIsoDate(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function formatDateInput(value: string) {
+  return value.replace(/[^\d-]/g, "").slice(0, 10);
+}
+
+function getCustomDateError(start: string, end: string) {
+  if (!start && !end) {
+    return null;
+  }
+
+  if (!isValidIsoDate(start) || !isValidIsoDate(end)) {
+    return "Use YYYY-MM-DD for both dates.";
+  }
+
+  if (end <= start) {
+    return "End date must be after start date.";
+  }
+
+  return null;
+}
+
+function isInsideRange(isoDate: string, selectedRange: string, customStart: string, customEnd: string) {
+  if (selectedRange === "Custom dates") {
+    if (getCustomDateError(customStart, customEnd)) {
+      return true;
+    }
+
+    return isoDate >= customStart && isoDate <= customEnd;
+  }
+
+  if (selectedRange === "Last week") {
+    return isoDate >= "2026-06-02" && isoDate <= "2026-06-08";
+  }
+
+  if (selectedRange === "Last month") {
+    return isoDate >= "2026-05-01" && isoDate <= "2026-05-31";
+  }
+
+  return isoDate >= "2026-06-09" && isoDate <= "2026-06-15";
+}
+
+function isValidIsoDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+
+  const date = new Date(`${value}T00:00:00Z`);
+
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }

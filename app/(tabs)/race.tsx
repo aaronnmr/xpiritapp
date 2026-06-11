@@ -2,10 +2,10 @@ import { useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 
 const sessions = [
-  { distance: "5.8 km", pace: "4:52", title: "Latest Run", date: "Jun 11, 2026" },
-  { distance: "7.2 km", pace: "5:08", title: "Tempo Run", date: "Jun 9, 2026" },
-  { distance: "4.1 km", pace: "5:34", title: "Easy Run", date: "Jun 7, 2026" },
-  { distance: "9.6 km", pace: "5:21", title: "Long Run", date: "Jun 5, 2026" }
+  { distance: "5.8 km", pace: "4:52", title: "Latest Run", date: "Jun 11, 2026", isoDate: "2026-06-11" },
+  { distance: "7.2 km", pace: "5:08", title: "Tempo Run", date: "Jun 9, 2026", isoDate: "2026-06-09" },
+  { distance: "4.1 km", pace: "5:34", title: "Easy Run", date: "Jun 7, 2026", isoDate: "2026-06-07" },
+  { distance: "9.6 km", pace: "5:21", title: "Long Run", date: "Jun 5, 2026", isoDate: "2026-06-05" }
 ];
 
 const rangeOptions = ["This week", "Last week", "Last month", "Custom dates"];
@@ -15,6 +15,8 @@ export default function RaceScreen() {
   const [selectedRange, setSelectedRange] = useState("This week");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
+  const customDateError = getCustomDateError(customStart, customEnd);
+  const visibleSessions = sessions.filter((session) => isInsideRange(session.isoDate, selectedRange, customStart, customEnd));
 
   const selectRange = (range: string) => {
     setSelectedRange(range);
@@ -69,28 +71,35 @@ export default function RaceScreen() {
           })}
 
           {selectedRange === "Custom dates" ? (
-            <View className="mt-2 flex-row gap-2 px-1 pb-1">
-              <TextInput
-                className="min-w-0 flex-1 rounded-[24px] bg-white px-4 py-3 text-sm text-black"
-                onChangeText={setCustomStart}
-                placeholder="Start date"
-                placeholderTextColor="#808080"
-                value={customStart}
-              />
-              <TextInput
-                className="min-w-0 flex-1 rounded-[24px] bg-white px-4 py-3 text-sm text-black"
-                onChangeText={setCustomEnd}
-                placeholder="End date"
-                placeholderTextColor="#808080"
-                value={customEnd}
-              />
-            </View>
+            <>
+              <View className="mt-2 flex-row gap-2 px-1">
+                <TextInput
+                  className="min-w-0 flex-1 rounded-[24px] bg-white px-4 py-3 text-sm text-black"
+                  keyboardType="numbers-and-punctuation"
+                  maxLength={10}
+                  onChangeText={(value) => setCustomStart(formatDateInput(value))}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor="#808080"
+                  value={customStart}
+                />
+                <TextInput
+                  className="min-w-0 flex-1 rounded-[24px] bg-white px-4 py-3 text-sm text-black"
+                  keyboardType="numbers-and-punctuation"
+                  maxLength={10}
+                  onChangeText={(value) => setCustomEnd(formatDateInput(value))}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor="#808080"
+                  value={customEnd}
+                />
+              </View>
+              {customDateError ? <Text className="px-3 pb-1 pt-2 text-xs font-semibold text-[#d14343]">{customDateError}</Text> : null}
+            </>
           ) : null}
         </View>
       ) : null}
 
       <View className="mt-3 gap-3">
-        {sessions.map((session) => (
+        {visibleSessions.map((session) => (
           <View key={`${session.title}-${session.date}`} className="rounded-[24px] bg-[#f3f5f9] p-5">
             <View className="flex-row items-center justify-between gap-3">
               <View className="min-w-0 flex-1">
@@ -109,4 +118,54 @@ export default function RaceScreen() {
       </View>
     </ScrollView>
   );
+}
+
+function formatDateInput(value: string) {
+  return value.replace(/[^\d-]/g, "").slice(0, 10);
+}
+
+function getCustomDateError(start: string, end: string) {
+  if (!start && !end) {
+    return null;
+  }
+
+  if (!isValidIsoDate(start) || !isValidIsoDate(end)) {
+    return "Use YYYY-MM-DD for both dates.";
+  }
+
+  if (end <= start) {
+    return "End date must be after start date.";
+  }
+
+  return null;
+}
+
+function isInsideRange(isoDate: string, selectedRange: string, customStart: string, customEnd: string) {
+  if (selectedRange === "Custom dates") {
+    if (getCustomDateError(customStart, customEnd)) {
+      return true;
+    }
+
+    return isoDate >= customStart && isoDate <= customEnd;
+  }
+
+  if (selectedRange === "Last week") {
+    return isoDate >= "2026-06-02" && isoDate <= "2026-06-08";
+  }
+
+  if (selectedRange === "Last month") {
+    return isoDate >= "2026-05-01" && isoDate <= "2026-05-31";
+  }
+
+  return isoDate >= "2026-06-09" && isoDate <= "2026-06-15";
+}
+
+function isValidIsoDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+
+  const date = new Date(`${value}T00:00:00Z`);
+
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
