@@ -1,7 +1,7 @@
 import "../global.css";
 
 import { QueryClientProvider } from "@tanstack/react-query";
-import { Stack } from "expo-router";
+import { Stack, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 
@@ -10,9 +10,17 @@ import { queryClient } from "@/lib/query-client";
 import { AmplitudeService } from "@/services/amplitude-service";
 
 export default function RootLayout() {
+  const pathname = usePathname();
+
   useEffect(() => {
     AmplitudeService.initOnce();
   }, []);
+
+  useEffect(() => {
+    AmplitudeService.trackScreen(pathname || "/", {
+      path: pathname || "/"
+    });
+  }, [pathname]);
 
   return (
     <I18nProvider>

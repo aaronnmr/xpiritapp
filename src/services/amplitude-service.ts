@@ -1,7 +1,7 @@
 import * as amplitude from "@amplitude/unified";
 import { Platform } from "react-native";
 
-const AMPLITUDE_API_KEY = "8aaa7bc0644323a640f886c680f318b7";
+const AMPLITUDE_API_KEY = process.env.EXPO_PUBLIC_AMPLITUDE_API_KEY ?? "8aaa7bc0644323a640f886c680f318b7";
 
 let initializePromise: Promise<void> | null = null;
 let isInitialized = false;
@@ -61,12 +61,22 @@ export const AmplitudeService = {
 
     void this.initOnce()?.then(() => {
       if (isInitialized) {
-        amplitude.track(eventName, properties);
+        amplitude.track(eventName, {
+          platform: Platform.OS,
+          ...properties
+        });
       }
+    });
+  },
+
+  trackScreen(screenName: string, properties: Record<string, unknown> = {}) {
+    this.track("screen_viewed", {
+      screen_name: screenName,
+      ...properties
     });
   }
 };
 
 function canUseAmplitude() {
-  return Platform.OS === "web" && typeof window !== "undefined";
+  return Platform.OS === "web" && typeof window !== "undefined" && Boolean(AMPLITUDE_API_KEY);
 }
