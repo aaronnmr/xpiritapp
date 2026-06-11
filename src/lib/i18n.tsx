@@ -23,6 +23,7 @@ type TranslationKey =
 type I18nContextValue = {
   detectedLocale: AppLocale;
   locale: AppLocale;
+  localeSource: "device" | "ip" | "manual";
   setManualLocale: (locale: AppLocale) => void;
   t: (key: TranslationKey) => string;
 };
@@ -83,7 +84,8 @@ const translations: Record<AppLocale, Record<TranslationKey, string>> = {
 const I18nContext = createContext<I18nContextValue | null>(null);
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [detectedLocale] = useState<AppLocale>(detectDeviceLocale);
+  const [detectedLocale, setDetectedLocale] = useState<AppLocale>(detectDeviceLocale);
+  const [localeSource, setLocaleSource] = useState<"device" | "ip">("device");
   const [manualLocale, setManualLocaleState] = useState<AppLocale | null>(null);
 
   useEffect(() => {
@@ -96,19 +98,37 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       .catch(() => undefined);
   }, []);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    detectIpLocale()
+      .then((ipLocale) => {
+        if (isMounted && ipLocale) {
+          setDetectedLocale(ipLocale);
+          setLocaleSource("ip");
+        }
+      })
+      .catch(() => undefined);
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const value = useMemo<I18nContextValue>(() => {
     const locale = manualLocale ?? detectedLocale;
 
     return {
       detectedLocale,
       locale,
+      localeSource: manualLocale ? "manual" : localeSource,
       setManualLocale: (nextLocale) => {
         setManualLocaleState(nextLocale);
         void AsyncStorage.setItem(STORAGE_KEY, nextLocale);
       },
       t: (key) => translations[locale][key]
     };
-  }, [detectedLocale, manualLocale]);
+  }, [detectedLocale, localeSource, manualLocale]);
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }
@@ -124,6 +144,15 @@ export function useI18n() {
 }
 
 function detectDeviceLocale(): AppLocale {
+  if (Platform.OS === "web" && typeof navigator !== "undefined") {
+    const browserLocale = navigator.languages?.[0] ?? navigator.language;
+    const browserLanguageCode = String(browserLocale ?? "en").slice(0, 2).toLowerCase();
+
+    if (isAppLocale(browserLanguageCode)) {
+      return browserLanguageCode;
+    }
+  }
+
   const rawLocale =
     Platform.OS === "ios"
       ? NativeModules.SettingsManager?.settings?.AppleLocale ?? NativeModules.SettingsManager?.settings?.AppleLanguages?.[0]
@@ -133,6 +162,79 @@ function detectDeviceLocale(): AppLocale {
 
   if (languageCode === "es" || languageCode === "de") {
     return languageCode;
+  }
+
+  return "en";
+}
+
+async function detectIpLocale(): Promise<AppLocale | null> {
+  if (Platform.OS !== "web" || typeof fetch === "undefined") {
+    return null;
+  }
+
+  const countryCode = await fetchIpCountryCode();
+
+  if (!countryCode) {
+    return null;
+  }
+
+  return localeFromCountryCode(countryCode);
+}
+
+async function fetchIpCountryCode() {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 2500);
+
+  try {
+    const response = await fetch("https://ipwho.is/", {
+      signal: controller.signal
+    });
+    const data = (await response.json()) as { country_code?: string; success?: boolean };
+
+    if (data.success === false) {
+      return null;
+    }
+
+    return data.country_code?.toUpperCase() ?? null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function localeFromCountryCode(countryCode: string): AppLocale {
+  const normalizedCountry = countryCode.toUpperCase();
+
+  if (["DE", "AT", "CH", "LI", "LU"].includes(normalizedCountry)) {
+    return "de";
+  }
+
+  if (
+    [
+      "AR",
+      "BO",
+      "CL",
+      "CO",
+      "CR",
+      "CU",
+      "DO",
+      "EC",
+      "ES",
+      "GT",
+      "HN",
+      "MX",
+      "NI",
+      "PA",
+      "PE",
+      "PR",
+      "PY",
+      "SV",
+      "UY",
+      "VE"
+    ].includes(normalizedCountry)
+  ) {
+    return "es";
   }
 
   return "en";
