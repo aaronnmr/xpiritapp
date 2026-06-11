@@ -55,6 +55,21 @@ export function useFrictionlessAuth() {
   }, []);
 
   useEffect(() => {
+    if (!supabase) {
+      return;
+    }
+
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (data.session?.user.id) {
+          void completeAuthenticatedSession("google", data.session.user.id);
+        }
+      })
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
     if (googleResponse?.type !== "success") {
       return;
     }
@@ -125,12 +140,33 @@ export function useFrictionlessAuth() {
       return;
     }
 
-    if (!hasGoogleClientId) {
+    if (Platform.OS !== "web" && !hasGoogleClientId) {
       setErrorMessage("Google OAuth client IDs are missing.");
       return;
     }
 
     setStatus("authenticating");
+
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      const { error } = await supabase.auth.signInWithOAuth({
+        options: {
+          queryParams: {
+            access_type: "offline",
+            prompt: "select_account"
+          },
+          redirectTo: window.location.origin
+        },
+        provider: "google"
+      });
+
+      if (error) {
+        handleAuthError(error);
+        return;
+      }
+
+      return;
+    }
+
     const result = await promptGoogleAsync();
 
     if (result.type !== "success") {
