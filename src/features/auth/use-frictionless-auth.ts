@@ -23,7 +23,8 @@ const googleClientIds = {
   iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
   webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID
 };
-const webRedirectUrl = process.env.EXPO_PUBLIC_APP_URL;
+const productionWebRedirectUrl = "https://xpiritapp.vercel.app";
+const configuredWebRedirectUrl = process.env.EXPO_PUBLIC_APP_URL;
 
 export function useFrictionlessAuth() {
   const { locale } = useI18n();
@@ -155,7 +156,7 @@ export function useFrictionlessAuth() {
             access_type: "offline",
             prompt: "select_account"
           },
-          redirectTo: webRedirectUrl ?? window.location.origin
+          redirectTo: getWebOAuthRedirectUrl()
         },
         provider: "google"
       });
@@ -319,4 +320,22 @@ function createNonce() {
 
 function isAppleCancel(error: unknown) {
   return typeof error === "object" && error !== null && "code" in error && error.code === "ERR_REQUEST_CANCELED";
+}
+
+function getWebOAuthRedirectUrl() {
+  if (configuredWebRedirectUrl?.startsWith("https://")) {
+    return configuredWebRedirectUrl;
+  }
+
+  if (typeof window === "undefined") {
+    return productionWebRedirectUrl;
+  }
+
+  const currentOrigin = window.location.origin;
+
+  if (currentOrigin.startsWith("https://")) {
+    return currentOrigin;
+  }
+
+  return productionWebRedirectUrl;
 }
