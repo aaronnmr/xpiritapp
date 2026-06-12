@@ -75,7 +75,7 @@ export default function GymScreen() {
           return nextRemaining;
         }
 
-        if (phase === "Recovery") {
+        if (phase === "Recovery" || phase === "Work") {
           playTransition();
         }
 
