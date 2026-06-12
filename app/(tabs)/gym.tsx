@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 
+import { useIntervalTimerAudio } from "@/hooks/use-interval-timer-audio";
 import { AmplitudeService } from "@/services/amplitude-service";
 import { XpiritDataService } from "@/services/xpirit-data-service";
 
@@ -39,8 +40,9 @@ export default function GymScreen() {
   const [workSeconds, setWorkSeconds] = useState("45");
   const [restSeconds, setRestSeconds] = useState("30");
   const [remaining, setRemaining] = useState(45);
-  const [phase, setPhase] = useState<"Work" | "Rest">("Work");
+  const [phase, setPhase] = useState<"Work" | "Recovery">("Work");
   const [isRunning, setIsRunning] = useState(false);
+  const { playTick, playTransition } = useIntervalTimerAudio();
 
   const selectedActivity = customActivity.trim() || activity;
   const canAddSet = selectedActivity.length > 0 && weight.length > 0 && reps.length > 0;
@@ -64,17 +66,27 @@ export default function GymScreen() {
     const interval = setInterval(() => {
       setRemaining((current) => {
         if (current > 1) {
-          return current - 1;
+          const nextRemaining = current - 1;
+
+          if (phase === "Recovery" && [3, 2, 1].includes(nextRemaining)) {
+            playTick();
+          }
+
+          return nextRemaining;
         }
 
-        const nextPhase = phase === "Work" ? "Rest" : "Work";
+        if (phase === "Recovery") {
+          playTransition();
+        }
+
+        const nextPhase = phase === "Work" ? "Recovery" : "Work";
         setPhase(nextPhase);
         return Number(nextPhase === "Work" ? workSeconds : restSeconds) || 1;
       });
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isRunning, phase, restSeconds, workSeconds]);
+  }, [isRunning, phase, playTick, playTransition, restSeconds, workSeconds]);
 
   function addSet() {
     if (!canAddSet) {

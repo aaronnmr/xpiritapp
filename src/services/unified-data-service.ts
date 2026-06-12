@@ -84,23 +84,21 @@ export const UnifiedDataService = {
       appendLocation
     );
 
-    if (Platform.OS !== "web") {
-      await Location.startLocationUpdatesAsync(GPS_TASK_NAME, {
-        accuracy: Location.Accuracy.BestForNavigation,
-        activityType: Location.ActivityType.Fitness,
-        deferredUpdatesDistance: MIN_DISTANCE_INTERVAL_METERS,
-        deferredUpdatesInterval: MIN_TIME_INTERVAL_MS,
-        distanceInterval: MIN_DISTANCE_INTERVAL_METERS,
-        foregroundService: {
-          killServiceOnDestroy: false,
-          notificationBody: "Xpirit is tracking your run.",
-          notificationTitle: "Run tracking active"
-        },
-        pausesUpdatesAutomatically: false,
-        showsBackgroundLocationIndicator: true,
-        timeInterval: MIN_TIME_INTERVAL_MS
-      });
-    }
+    await Location.startLocationUpdatesAsync(GPS_TASK_NAME, {
+      accuracy: Location.Accuracy.BestForNavigation,
+      activityType: Location.ActivityType.Fitness,
+      deferredUpdatesDistance: MIN_DISTANCE_INTERVAL_METERS,
+      deferredUpdatesInterval: MIN_TIME_INTERVAL_MS,
+      distanceInterval: MIN_DISTANCE_INTERVAL_METERS,
+      foregroundService: {
+        killServiceOnDestroy: false,
+        notificationBody: "Xpirit is tracking your run.",
+        notificationTitle: "Run tracking active"
+      },
+      pausesUpdatesAutomatically: false,
+      showsBackgroundLocationIndicator: true,
+      timeInterval: MIN_TIME_INTERVAL_MS
+    });
 
     try {
       const currentLocation = await Location.getCurrentPositionAsync({
