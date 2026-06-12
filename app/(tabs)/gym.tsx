@@ -80,9 +80,8 @@ export default function GymScreen() {
           return nextRemaining;
         }
 
-        if (phase === "Recovery") {
-          playTransition();
-        }
+        // Phase is ending (current <= 1) — play transition sound for both Work and Recovery
+        playTransition();
 
         const nextPhase = phase === "Work" ? "Recovery" : "Work";
         setPhase(nextPhase);

@@ -367,6 +367,90 @@ export const XpiritDataService = {
     return data.id as string;
   },
 
+  async generatePremiumReport(weekStartDate: string, weekEndDate: string) {
+    const userId = await this.ensureProfile();
+
+    if (!userId || !supabase) {
+      return null;
+    }
+
+    try {
+      const response = await supabase.functions.invoke("generate-premium-report", {
+        body: {
+          userId,
+          weekStartDate,
+          weekEndDate,
+        },
+      });
+
+      if (response.error) {
+        warnSupabase("generatePremiumReport.invoke", response.error);
+        return null;
+      }
+
+      await this.trackEvent("premium_report_generated", "profile", {
+        week_start: weekStartDate,
+        week_end: weekEndDate,
+      });
+
+      return response.data;
+    } catch (error) {
+      warnSupabase("generatePremiumReport", error);
+      return null;
+    }
+  },
+
+  async getPremiumReports(limit = 10, offset = 0) {
+    const userId = await this.ensureProfile();
+
+    if (!userId || !supabase) {
+      return null;
+    }
+
+    const { data, error, count } = await supabase
+      .from("premium_report_cards")
+      .select("*", { count: "exact" })
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (error) {
+      warnSupabase("getPremiumReports", error);
+      return null;
+    }
+
+    return { reports: data || [], total: count || 0 };
+  },
+
+  async updateReportVisibility(reportId: string, visibility: "private" | "shared") {
+    const userId = await this.ensureProfile();
+
+    if (!userId || !supabase) {
+      return null;
+    }
+
+    const { error } = await supabase
+      .from("premium_report_cards")
+      .update({
+        visibility,
+        shared_at: visibility === "shared" ? new Date().toISOString() : null,
+      })
+      .eq("id", reportId)
+      .eq("user_id", userId);
+
+    if (error) {
+      warnSupabase("updateReportVisibility", error);
+      return null;
+    }
+
+    await this.trackEvent("report_visibility_changed", "profile", {
+      report_id: reportId,
+      visibility,
+    });
+
+    return true;
+  },
+
   async trackEvent(eventName: string, screenName?: string, properties: Record<string, unknown> = {}) {
     if (!supabase) {
       return;
