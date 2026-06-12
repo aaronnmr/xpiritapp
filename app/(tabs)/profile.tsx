@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { PremiumCheckoutModal } from "../../src/components/premium-checkout-modal";
 import { AmplitudeService } from "../../src/services/amplitude-service";
+import { supabase } from "../../src/lib/supabase";
 import { RevenueCatService, type RevenueCatProductId } from "../../src/services/revenuecat-service";
 
 const achievements = [
@@ -83,6 +84,19 @@ export default function ProfileScreen() {
     setPremiumFeedback("No active Xpirit subscription was found.");
   };
 
+  const handleLogout = async () => {
+    try {
+      AmplitudeService.track("auth_sign_out");
+      if (supabase) {
+        await supabase.auth.signOut();
+      }
+    } catch (error) {
+      // ignore errors on sign out
+    } finally {
+      router.replace("/");
+    }
+  };
+
   return (
     <>
       <ScrollView className="flex-1 bg-white px-5 pt-14" contentContainerStyle={{ paddingBottom: 120 }}>
@@ -150,6 +164,11 @@ export default function ProfileScreen() {
           <Text className="mt-2 text-base leading-6 text-[#999999]">Activate the 9:16 report to share progress, mileage, volume, and recovery.</Text>
           <Pressable className="mt-4 rounded-full bg-white px-6 py-4" onPress={openPremiumPaywall}>
             <Text className="text-center text-sm font-semibold uppercase tracking-widest text-black">View Report</Text>
+          </Pressable>
+        </View>
+        <View className="mt-6 items-center">
+          <Pressable onPress={handleLogout}>
+            <Text className="text-sm font-semibold text-[#4a53ff]">log out</Text>
           </Pressable>
         </View>
       </ScrollView>

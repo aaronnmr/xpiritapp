@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 import { useIntervalTimerAudio } from "@/hooks/use-interval-timer-audio";
 import { AmplitudeService } from "@/services/amplitude-service";
@@ -34,6 +35,10 @@ export default function GymScreen() {
     { activity: "Deadlift", date: "Jun 6, 2026", id: 3, isoDate: "2026-06-06", reps: "5", weight: "110" }
   ]);
   const [isSetRangeOpen, setIsSetRangeOpen] = useState(false);
+  const [editingSetId, setEditingSetId] = useState<number | null>(null);
+  const [editWeight, setEditWeight] = useState("");
+  const [editReps, setEditReps] = useState("");
+  const [editError, setEditError] = useState<string | null>(null);
   const [selectedSetRange, setSelectedSetRange] = useState("This week");
   const [setCustomStart, setSetCustomStart] = useState("");
   const [setCustomEnd, setSetCustomEnd] = useState("");
@@ -75,7 +80,7 @@ export default function GymScreen() {
           return nextRemaining;
         }
 
-        if (phase === "Recovery" || phase === "Work") {
+        if (phase === "Recovery") {
           playTransition();
         }
 
@@ -118,6 +123,44 @@ export default function GymScreen() {
       weightKg: Number(weight)
     });
   }
+
+  const startEditingSet = (item: GymSet) => {
+    setEditingSetId(item.id);
+    setEditWeight(item.weight ?? "");
+    setEditReps(item.reps ?? "");
+    setEditError(null);
+  };
+
+  const cancelEditing = () => {
+    setEditingSetId(null);
+    setEditWeight("");
+    setEditReps("");
+    setEditError(null);
+  };
+
+  const saveEditing = async (id: number) => {
+    const weightNum = Number(editWeight);
+    const repsNum = Number(editReps);
+
+    if (Number.isNaN(weightNum) || Number.isNaN(repsNum) || weightNum < 0 || repsNum < 0) {
+      setEditError("Enter valid non-negative numbers for weight and reps.");
+      return;
+    }
+
+    // update local state
+    setSets((current) => current.map((s) => (s.id === id ? { ...s, weight: String(weightNum), reps: String(repsNum) } : s)));
+
+    // persist
+    try {
+      await XpiritDataService.updateGymSet(id, { reps: repsNum, weightKg: weightNum });
+    } catch (e) {
+      // ignore persistence errors for now
+    }
+
+    // exit edit mode
+    setEditingSetId(null);
+    setEditError(null);
+  };
 
   function startTimer() {
     setPhase("Work");
@@ -292,18 +335,67 @@ export default function GymScreen() {
         ) : null}
 
         <View className="gap-3">
-          {visibleSets.map((item) => (
-            <View key={item.id} className="flex-row items-center justify-between gap-3 rounded-[24px] bg-[#f3f5f9] p-5">
-              <View className="min-w-0 flex-1">
-                <Text className="text-xl font-semibold tracking-[-0.6px] text-black" numberOfLines={1}>
-                  {item.activity}
-                </Text>
-                <Text className="mt-1 text-base text-[#808080]">{item.date}</Text>
-                <Text className="mt-1 text-sm font-semibold text-[#4a53ff]">{item.weight} kg</Text>
+          {visibleSets.map((item) => {
+            const isEditing = editingSetId === item.id;
+
+            return (
+              <View key={item.id} className="flex-row items-center justify-between gap-3 rounded-[24px] bg-[#f3f5f9] p-5">
+                <View className="min-w-0 flex-1">
+                  <Text className="text-xl font-semibold tracking-[-0.6px] text-black" numberOfLines={1}>
+                    {item.activity}
+                  </Text>
+                  <Text className="mt-1 text-base text-[#808080]">{item.date}</Text>
+                  {isEditing ? (
+                    <TextInput
+                      value={editWeight}
+                      onChangeText={setEditWeight}
+                      placeholder="Weight kg"
+                      placeholderTextColor="#808080"
+                      keyboardType="decimal-pad"
+                      className="mt-2 min-w-0 rounded-[12px] bg-white px-3 py-2 text-sm text-black"
+                    />
+                  ) : (
+                    <Text className="mt-1 text-sm font-semibold text-[#4a53ff]">{item.weight} kg</Text>
+                  )}
+                </View>
+
+                <View className="items-end">
+                  <View className="flex-row items-center gap-2">
+                    {isEditing ? (
+                      <>
+                        <Pressable onPress={() => saveEditing(item.id)}>
+                          <Ionicons name="checkmark" size={18} color="#4a53ff" />
+                        </Pressable>
+                        <Pressable onPress={cancelEditing}>
+                          <Ionicons name="close" size={18} color="#999999" />
+                        </Pressable>
+                      </>
+                    ) : (
+                      <Pressable onPress={() => startEditingSet(item)}>
+                        <Ionicons name="pencil" size={16} color="#4a53ff" />
+                      </Pressable>
+                    )}
+                  </View>
+
+                  {isEditing ? (
+                    <>
+                      <TextInput
+                        value={editReps}
+                        onChangeText={setEditReps}
+                        placeholder="Reps"
+                        placeholderTextColor="#808080"
+                        keyboardType="number-pad"
+                        className="mt-2 w-12 rounded-[12px] bg-white px-3 py-2 text-center text-2xl font-normal text-black"
+                      />
+                      {editError ? <Text className="mt-2 text-xs font-semibold text-[#d14343]">{editError}</Text> : null}
+                    </>
+                  ) : (
+                    <Text className="shrink-0 text-3xl font-normal tracking-[-1px] text-black">{item.reps}</Text>
+                  )}
+                </View>
               </View>
-              <Text className="shrink-0 text-3xl font-normal tracking-[-1px] text-black">{item.reps}</Text>
-            </View>
-          ))}
+            );
+          })}
         </View>
       </View>
     </ScrollView>

@@ -292,6 +292,25 @@ export const XpiritDataService = {
     return set.id as string;
   },
 
+  async updateGymSet(id: number, input: { reps: number; weightKg: number }) {
+    const userId = await this.ensureProfile();
+
+    if (!userId || !supabase) {
+      return null;
+    }
+
+    const { error } = await supabase.from("gym_sets").update({ reps: input.reps, weight_kg: input.weightKg }).eq("id", id).eq("user_id", userId);
+
+    if (error) {
+      warnSupabase("updateGymSet", error);
+      return null;
+    }
+
+    await this.trackEvent("gym_set_updated", "gym", { reps: input.reps, weight_kg: input.weightKg, set_id: id });
+
+    return true;
+  },
+
   async saveIntervalTimer(activitySeconds: number, restSeconds: number, repeats: number) {
     const userId = await this.ensureProfile();
 
