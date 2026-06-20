@@ -1,21 +1,22 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
 import * as Sharing from "expo-sharing";
 import { useEffect, useRef, useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { ActionSheetIOS, Alert, Image, Platform, Pressable, Text, View } from "react-native";
 import ViewShot from "react-native-view-shot";
 
 import { AmplitudeService } from "@/services/amplitude-service";
-import { XpiritDataService, type DashboardSnapshot, type WeeklyDayLoad } from "@/services/xpirit-data-service";
-
-const weekdayLabels = ["M", "T", "W", "T", "F", "S", "S"];
+import { useI18n } from "@/lib/i18n";
+import { XpiritDataService, type WeeklyReportSummary } from "@/services/xpirit-data-service";
 
 export default function ReportScreen() {
+  const { locale, t } = useI18n();
   const reportRef = useRef<ViewShot>(null);
   const [isSharing, setIsSharing] = useState(false);
-  const [snapshot, setSnapshot] = useState<DashboardSnapshot | null>(null);
-  const [weeklyLoad, setWeeklyLoad] = useState<WeeklyDayLoad[]>([]);
+  const [summary, setSummary] = useState<WeeklyReportSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [backgroundUri, setBackgroundUri] = useState<string | null>(null);
 
   useEffect(() => {
     void loadReportData();
@@ -23,25 +24,84 @@ export default function ReportScreen() {
 
   async function loadReportData() {
     setIsLoading(true);
-    const [dashboardSnapshot, weeklyLoadRecords] = await Promise.all([
-      XpiritDataService.getDashboardSnapshot(),
-      XpiritDataService.getWeeklyLoad()
-    ]);
+    const weeklySummary = await XpiritDataService.getWeeklyReportSummary();
     setIsLoading(false);
 
-    if (dashboardSnapshot) {
-      setSnapshot(dashboardSnapshot);
-    }
-
-    if (weeklyLoadRecords) {
-      setWeeklyLoad(weeklyLoadRecords);
+    if (weeklySummary) {
+      setSummary(weeklySummary);
     }
   }
 
-  const bestRunKm = snapshot?.latestRun ? snapshot.latestRun.distanceMeters / 1000 : 0;
-  const bestRunPace = formatPace(snapshot?.latestRun?.paceSecondsPerKm ?? null);
-  const workoutCount = snapshot?.weeklyWorkoutCount ?? 0;
-  const maxDailyBarHeight = 64;
+  const totalDistanceKm = summary ? summary.totalDistanceMeters / 1000 : 0;
+  const longestRunKm = summary ? summary.longestRunMeters / 1000 : 0;
+  const avgDistancePerRunKm = summary && summary.sessionCount > 0 ? totalDistanceKm / summary.sessionCount : 0;
+  const periodLabel = getCurrentWeekLabel(locale);
+
+  async function pickFromLibrary() {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (!permission.granted) {
+      Alert.alert("Photos access needed", "Allow photo access in Settings to pick a background image.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      allowsEditing: true,
+      aspect: [9, 16],
+      mediaTypes: ["images"],
+      quality: 0.9
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      setBackgroundUri(result.assets[0].uri);
+      AmplitudeService.track("report_background_set", { source: "library" });
+    }
+  }
+
+  async function takePhoto() {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+
+    if (!permission.granted) {
+      Alert.alert("Camera access needed", "Allow camera access in Settings to take a background photo.");
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      aspect: [9, 16],
+      quality: 0.9
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      setBackgroundUri(result.assets[0].uri);
+      AmplitudeService.track("report_background_set", { source: "camera" });
+    }
+  }
+
+  function choosePhotoSource() {
+    if (Platform.OS === "ios") {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          cancelButtonIndex: 2,
+          options: ["Take Photo", "Choose from Library", "Cancel"]
+        },
+        (buttonIndex) => {
+          if (buttonIndex === 0) {
+            void takePhoto();
+          } else if (buttonIndex === 1) {
+            void pickFromLibrary();
+          }
+        }
+      );
+      return;
+    }
+
+    Alert.alert("Set background photo", undefined, [
+      { onPress: () => void takePhoto(), text: "Take Photo" },
+      { onPress: () => void pickFromLibrary(), text: "Choose from Library" },
+      { style: "cancel", text: "Cancel" }
+    ]);
+  }
 
   const shareReport = async () => {
     if (!reportRef.current?.capture) {
@@ -50,7 +110,8 @@ export default function ReportScreen() {
 
     setIsSharing(true);
     AmplitudeService.track("report_share_started", {
-      format: "9:16"
+      format: "9:16",
+      has_background_photo: backgroundUri !== null
     });
 
     try {
@@ -58,9 +119,12 @@ export default function ReportScreen() {
       await XpiritDataService.saveReportCard({
         imageUrl: uri,
         metrics: {
-          best_run_km: Number(bestRunKm.toFixed(2)),
-          best_run_pace: bestRunPace,
-          workouts: workoutCount
+          avg_pace_seconds_per_km: summary?.avgPaceSecondsPerKm ?? null,
+          longest_run_km: Number(longestRunKm.toFixed(2)),
+          sessions: summary?.sessionCount ?? 0,
+          top_gym_set: summary?.topGymSet ?? null,
+          total_distance_km: Number(totalDistanceKm.toFixed(2)),
+          total_duration_seconds: summary?.totalDurationSeconds ?? 0
         },
         periodEnd: new Date().toISOString().slice(0, 10),
         periodStart: getSevenDaysAgo(),
@@ -95,63 +159,81 @@ export default function ReportScreen() {
 
       <View className="flex-1 items-center justify-center">
         <ViewShot ref={reportRef} options={{ fileName: "xpirit-report", format: "png", quality: 1 }}>
-          <View className="aspect-[9/16] w-[320px] overflow-hidden rounded-[28px] border border-[#e5e7eb] bg-white p-5">
-            <View className="flex-row items-start justify-between">
-              <View>
-                <Text className="text-xs font-semibold uppercase tracking-widest text-[#808080]">Xpirit Report</Text>
-                <Text className="mt-2 text-4xl font-normal leading-[38px] tracking-[-1.4px] text-black">Weekly performance</Text>
-              </View>
-              <View className="rounded-full bg-black px-3 py-2">
-                <Text className="text-xs font-semibold uppercase tracking-widest text-white">9:16</Text>
-              </View>
-            </View>
+          <View className="aspect-[9/16] w-[320px] overflow-hidden rounded-[28px] border border-[#1a1a1a] bg-black">
+            {backgroundUri ? (
+              <Image source={{ uri: backgroundUri }} className="absolute h-full w-full" resizeMode="cover" />
+            ) : (
+              <View className="absolute h-full w-full bg-[#15161a]" />
+            )}
+            <View className="absolute h-full w-full bg-black/35" />
 
-            <View className="mt-6 overflow-hidden rounded-[24px] bg-black p-5">
-              <View className="absolute right-[-50px] top-[-52px] h-36 w-36 rounded-full bg-[#4a53ff] opacity-55" />
-              <Text className="text-xs font-semibold uppercase tracking-widest text-[#999999]">Best run</Text>
-              <Text className="mt-3 text-6xl font-normal tracking-[-2px] text-white">{isLoading ? "--" : bestRunKm.toFixed(1)}</Text>
-              <Text className="mt-1 text-base text-[#999999]">km covered</Text>
-              <Text className="mt-4 text-2xl font-semibold text-[#4a53ff]">{isLoading ? "--:--" : bestRunPace} /km</Text>
-            </View>
+            <View className="flex-1 p-5">
+              <Text className="text-xs font-semibold uppercase tracking-[2px] text-white/70" style={textShadow}>
+                {t("report.title")}
+              </Text>
+              <Text className="mt-2 text-3xl font-extrabold uppercase leading-[34px] tracking-[-0.5px] text-white" style={textShadow}>
+                {periodLabel}
+              </Text>
+              <View className="mt-3 h-[2px] w-10 bg-white/80" />
 
-            <View className="mt-4 flex-row gap-3">
-              <View className="flex-1 rounded-[22px] bg-[#f3f5f9] p-4">
-                <Text className="text-xs font-semibold uppercase tracking-widest text-[#808080]">Workouts</Text>
-                <Text className="mt-2 text-4xl font-normal text-black">{isLoading ? "--" : workoutCount}</Text>
+              <View className="mt-auto items-center">
+                <Text className="text-xs font-semibold uppercase tracking-[2px] text-white/70" style={textShadow}>
+                  {t("report.totalDistance")}
+                </Text>
+                <View className="mt-2 flex-row items-end">
+                  <Text className="text-7xl font-extrabold tracking-[-2px] text-white" style={textShadow}>
+                    {isLoading ? "--" : totalDistanceKm.toFixed(1)}
+                  </Text>
+                  <Text className="ml-1 mb-2 text-xl font-semibold text-white/85" style={textShadow}>
+                    km
+                  </Text>
+                </View>
               </View>
-              <View className="flex-1 rounded-[22px] bg-[#f3f5f9] p-4">
-                <Text className="text-xs font-semibold uppercase tracking-widest text-[#808080]">Active days</Text>
-                <Text className="mt-2 text-4xl font-normal text-black">{isLoading ? "--" : weeklyLoad.filter((d) => d.hasActivity).length}</Text>
-              </View>
-            </View>
 
-            <View className="mt-4 rounded-[24px] bg-[#f3f5f9] p-4">
-              <View className="flex-row items-end justify-between">
-                {weeklyLoad.map((day, index) => {
-                  const barHeight = day.workoutCount === 0 ? 4 : Math.min(maxDailyBarHeight, 24 + day.workoutCount * 20);
+              <View className="mt-auto">
+                <View className="h-[1px] bg-white/25" />
+                <View className="mt-4 flex-row justify-between">
+                  <ReportStat label={t("report.sessions")} value={isLoading ? "--" : String(summary?.sessionCount ?? 0)} />
+                  <ReportStat label={t("report.totalTime")} value={isLoading ? "--" : formatDuration(summary?.totalDurationSeconds ?? 0)} />
+                </View>
+                <View className="mt-4 flex-row justify-between">
+                  <ReportStat label={t("report.avgPace")} value={isLoading ? "--" : formatPace(summary?.avgPaceSecondsPerKm ?? null)} unit="/km" />
+                  <ReportStat label={t("report.avgPerRun")} value={isLoading ? "--" : avgDistancePerRunKm.toFixed(1)} unit="km" />
+                </View>
+                <View className="mt-4 flex-row justify-between">
+                  <ReportStat label={t("report.longestRun")} value={isLoading ? "--" : longestRunKm.toFixed(1)} unit="km" />
+                  {summary?.topGymSet ? (
+                    <ReportStat
+                      label={summary.topGymSet.activity}
+                      value={String(summary.topGymSet.weightKg)}
+                      unit="kg"
+                    />
+                  ) : (
+                    <ReportStat label={t("report.week")} value={isLoading ? "--" : `#${summary?.weekNumber ?? ""}`} />
+                  )}
+                </View>
 
-                  return (
-                    <View key={day.isoDate} className="items-center gap-2">
-                      <View className={`w-6 rounded-full ${day.hasActivity ? "bg-[#4a53ff]" : "bg-[#dfe3ee]"}`} style={{ height: barHeight }} />
-                      <Text className="text-[10px] font-semibold text-[#808080]">{weekdayLabels[index]}</Text>
-                    </View>
-                  );
-                })}
-              </View>
-            </View>
-
-            <View className="mt-auto">
-              <View className="h-[1px] bg-[#e5e7eb]" />
-              <View className="mt-4 flex-row items-center justify-between">
-                <Text className="text-xs font-semibold uppercase tracking-widest text-[#808080]">Built with Xpirit</Text>
-                <Text className="text-base font-semibold text-[#4a53ff]">xpirit.fit</Text>
+                <View className="mt-5 flex-row items-center justify-between">
+                  <Text className="text-xs font-semibold uppercase tracking-[2px] text-white/60" style={textShadow}>
+                    {t("report.keepMoving")}
+                  </Text>
+                  <Text className="text-xs font-semibold text-white/60" style={textShadow}>
+                    {new Date().getFullYear()}
+                  </Text>
+                </View>
               </View>
             </View>
           </View>
         </ViewShot>
       </View>
 
-      <Pressable className="mt-5 rounded-full bg-[#4a53ff] px-6 py-4" onPress={shareReport}>
+      <Pressable className="mt-5 rounded-full border border-[#e5e7eb] bg-white px-6 py-4" onPress={choosePhotoSource}>
+        <Text className="text-center text-sm font-semibold uppercase tracking-widest text-black">
+          {backgroundUri ? "Change Background Photo" : "Set Background Photo"}
+        </Text>
+      </Pressable>
+
+      <Pressable className="mt-3 rounded-full bg-[#4a53ff] px-6 py-4" onPress={shareReport}>
         <Text className="text-center text-sm font-semibold uppercase tracking-widest text-white">
           {isSharing ? "Preparing..." : "Share Report"}
         </Text>
@@ -160,9 +242,46 @@ export default function ReportScreen() {
   );
 }
 
+function ReportStat({ label, unit, value }: { label: string; unit?: string; value: string }) {
+  return (
+    <View className="max-w-[47%]">
+      <Text className="text-[10px] font-semibold uppercase tracking-[1.5px] text-white/60" numberOfLines={1} style={textShadow}>
+        {label}
+      </Text>
+      <View className="mt-1 flex-row items-end">
+        <Text className="text-2xl font-extrabold text-white" style={textShadow}>
+          {value}
+        </Text>
+        {unit ? (
+          <Text className="ml-1 mb-[2px] text-xs font-semibold text-white/80" style={textShadow}>
+            {unit}
+          </Text>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+const textShadow = {
+  textShadowColor: "rgba(0,0,0,0.55)",
+  textShadowOffset: { height: 1, width: 0 },
+  textShadowRadius: 6
+};
+
+function formatDuration(totalSeconds: number) {
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+
+  return `${minutes}m`;
+}
+
 function formatPace(secondsPerKm: number | null) {
   if (!secondsPerKm) {
-    return "--:--";
+    return "--'--\"";
   }
 
   const minutes = Math.floor(secondsPerKm / 60);
@@ -170,7 +289,7 @@ function formatPace(secondsPerKm: number | null) {
     .toString()
     .padStart(2, "0");
 
-  return `${minutes}:${seconds}`;
+  return `${minutes}'${seconds}"`;
 }
 
 function getSevenDaysAgo() {
@@ -178,4 +297,27 @@ function getSevenDaysAgo() {
   date.setDate(date.getDate() - 7);
 
   return date.toISOString().slice(0, 10);
+}
+
+function getCurrentWeekLabel(locale: string) {
+  const today = new Date();
+  const dayOfWeek = today.getDay();
+  const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+
+  const start = new Date(today);
+  start.setDate(today.getDate() - daysSinceMonday);
+
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+
+  const intlLocale = locale === "es" ? "es-ES" : locale === "de" ? "de-DE" : "en-US";
+  const monthFormatter = new Intl.DateTimeFormat(intlLocale, { month: "long" });
+  const startMonth = monthFormatter.format(start);
+  const endMonth = monthFormatter.format(end);
+
+  if (startMonth === endMonth) {
+    return `${startMonth} ${start.getDate()} - ${end.getDate()}`;
+  }
+
+  return `${startMonth} ${start.getDate()} - ${endMonth} ${end.getDate()}`;
 }
