@@ -9,7 +9,7 @@ import { XpiritDataService } from "@/services/xpirit-data-service";
 type GymSet = {
   activity: string;
   date: string;
-  id: number;
+  id: string;
   isoDate: string;
   reps: string;
   weight: string;
@@ -29,13 +29,10 @@ export default function GymScreen() {
   const [customActivity, setCustomActivity] = useState("");
   const [weight, setWeight] = useState("");
   const [reps, setReps] = useState("");
-  const [sets, setSets] = useState<GymSet[]>([
-    { activity: "Bench Press", date: "Jun 11, 2026", id: 1, isoDate: "2026-06-11", reps: "8", weight: "60" },
-    { activity: "Squat", date: "Jun 10, 2026", id: 2, isoDate: "2026-06-10", reps: "10", weight: "80" },
-    { activity: "Deadlift", date: "Jun 6, 2026", id: 3, isoDate: "2026-06-06", reps: "5", weight: "110" }
-  ]);
+  const [sets, setSets] = useState<GymSet[]>([]);
+  const [isLoadingSets, setIsLoadingSets] = useState(true);
   const [isSetRangeOpen, setIsSetRangeOpen] = useState(false);
-  const [editingSetId, setEditingSetId] = useState<number | null>(null);
+  const [editingSetId, setEditingSetId] = useState<string | null>(null);
   const [editWeight, setEditWeight] = useState("");
   const [editReps, setEditReps] = useState("");
   const [editError, setEditError] = useState<string | null>(null);
@@ -62,6 +59,31 @@ export default function GymScreen() {
     setSelectedSetRange(range);
     setIsSetRangeOpen(range === "Custom dates");
   };
+
+  useEffect(() => {
+    void loadGymSets();
+  }, []);
+
+  async function loadGymSets() {
+    setIsLoadingSets(true);
+    const records = await XpiritDataService.getGymSets();
+    setIsLoadingSets(false);
+
+    if (!records) {
+      return;
+    }
+
+    setSets(
+      records.map((record) => ({
+        activity: record.activity,
+        date: formatDateLabel(new Date(record.completedAt)),
+        id: record.id,
+        isoDate: record.completedAt.slice(0, 10),
+        reps: String(record.reps),
+        weight: String(record.weightKg)
+      }))
+    );
+  }
 
   useEffect(() => {
     if (!isRunning) {
@@ -92,35 +114,45 @@ export default function GymScreen() {
     return () => clearInterval(interval);
   }, [isRunning, phase, playTick, playTransition, restSeconds, workSeconds]);
 
-  function addSet() {
+  async function addSet() {
     if (!canAddSet) {
+      return;
+    }
+
+    const activityName = selectedActivity;
+    const repsValue = reps;
+    const weightValue = weight;
+
+    setWeight("");
+    setReps("");
+    setCustomActivity("");
+    AmplitudeService.track("gym_set_saved", {
+      activity: activityName,
+      reps: Number(repsValue),
+      weight_kg: Number(weightValue)
+    });
+
+    const savedId = await XpiritDataService.saveGymSet({
+      activity: activityName,
+      reps: Number(repsValue),
+      weightKg: Number(weightValue)
+    });
+
+    if (!savedId) {
       return;
     }
 
     setSets((current) => [
       {
-        activity: selectedActivity,
+        activity: activityName,
         date: formatDateLabel(new Date()),
-        id: Date.now(),
+        id: savedId,
         isoDate: formatIsoDate(new Date()),
-        reps,
-        weight
+        reps: repsValue,
+        weight: weightValue
       },
       ...current
     ]);
-    setWeight("");
-    setReps("");
-    setCustomActivity("");
-    AmplitudeService.track("gym_set_saved", {
-      activity: selectedActivity,
-      reps: Number(reps),
-      weight_kg: Number(weight)
-    });
-    void XpiritDataService.saveGymSet({
-      activity: selectedActivity,
-      reps: Number(reps),
-      weightKg: Number(weight)
-    });
   }
 
   const startEditingSet = (item: GymSet) => {
@@ -137,7 +169,7 @@ export default function GymScreen() {
     setEditError(null);
   };
 
-  const saveEditing = async (id: number) => {
+  const saveEditing = async (id: string) => {
     const weightNum = Number(editWeight);
     const repsNum = Number(editReps);
 
@@ -334,6 +366,10 @@ export default function GymScreen() {
         ) : null}
 
         <View className="gap-3">
+          {isLoadingSets ? <Text className="px-1 text-base text-[#808080]">Loading your sets…</Text> : null}
+          {!isLoadingSets && visibleSets.length === 0 ? (
+            <Text className="px-1 text-base text-[#808080]">No sets logged for this range yet.</Text>
+          ) : null}
           {visibleSets.map((item) => {
             const isEditing = editingSetId === item.id;
 
@@ -442,15 +478,35 @@ function isInsideRange(isoDate: string, selectedRange: string, customStart: stri
     return isoDate >= customStart && isoDate <= customEnd;
   }
 
+  const today = new Date();
+  const dayOfWeek = today.getDay();
+  const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+
+  const startOfThisWeek = new Date(today);
+  startOfThisWeek.setDate(today.getDate() - daysSinceMonday);
+  startOfThisWeek.setHours(0, 0, 0, 0);
+
   if (selectedRange === "Last week") {
-    return isoDate >= "2026-06-02" && isoDate <= "2026-06-08";
+    const startOfLastWeek = addDays(startOfThisWeek, -7);
+    const endOfLastWeek = addDays(startOfThisWeek, -1);
+    return isoDate >= formatIsoDate(startOfLastWeek) && isoDate <= formatIsoDate(endOfLastWeek);
   }
 
   if (selectedRange === "Last month") {
-    return isoDate >= "2026-05-01" && isoDate <= "2026-05-31";
+    const firstOfThisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const firstOfLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    const lastOfLastMonth = addDays(firstOfThisMonth, -1);
+    return isoDate >= formatIsoDate(firstOfLastMonth) && isoDate <= formatIsoDate(lastOfLastMonth);
   }
 
-  return isoDate >= "2026-06-09" && isoDate <= "2026-06-15";
+  const endOfThisWeek = addDays(startOfThisWeek, 6);
+  return isoDate >= formatIsoDate(startOfThisWeek) && isoDate <= formatIsoDate(endOfThisWeek);
+}
+
+function addDays(date: Date, days: number) {
+  const result = new Date(date);
+  result.setDate(result.getDate() + days);
+  return result;
 }
 
 function isValidIsoDate(value: string) {
@@ -462,3 +518,4 @@ function isValidIsoDate(value: string) {
 
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
+

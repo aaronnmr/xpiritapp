@@ -5,12 +5,7 @@ import { PremiumCheckoutModal } from "../../src/components/premium-checkout-moda
 import { AmplitudeService } from "../../src/services/amplitude-service";
 import { supabase } from "../../src/lib/supabase";
 import { RevenueCatService, type RevenueCatProductId } from "../../src/services/revenuecat-service";
-
-const achievements = [
-  { detail: "6 day active streak", title: "Consistency" },
-  { detail: "First live GPS run saved", title: "Road Ready" },
-  { detail: "3 strength sessions this week", title: "Strength Block" }
-];
+import { XpiritDataService, type ProfileSummary, type UnlockedAchievement } from "../../src/services/xpirit-data-service";
 
 export default function ProfileScreen() {
   const params = useLocalSearchParams<{ paywall?: string }>();
@@ -18,6 +13,24 @@ export default function ProfileScreen() {
   const [isPlanOpen, setIsPlanOpen] = useState(false);
   const [premiumFeedback, setPremiumFeedback] = useState<string | null>(null);
   const [selectedPlanId, setSelectedPlanId] = useState("xpirit_premium_monthly_299");
+  const [profileSummary, setProfileSummary] = useState<ProfileSummary | null>(null);
+  const [achievements, setAchievements] = useState<UnlockedAchievement[]>([]);
+
+  useEffect(() => {
+    void loadProfile();
+  }, []);
+
+  async function loadProfile() {
+    const [summary, unlocked] = await Promise.all([XpiritDataService.getProfileSummary(), XpiritDataService.getUnlockedAchievements()]);
+
+    if (summary) {
+      setProfileSummary(summary);
+    }
+
+    if (unlocked) {
+      setAchievements(unlocked);
+    }
+  }
 
   useEffect(() => {
     if (params.paywall === "1") {
@@ -97,42 +110,51 @@ export default function ProfileScreen() {
     }
   };
 
+  const displayName = profileSummary?.displayName ?? "Xpirit athlete";
+  const initial = displayName.trim().charAt(0).toUpperCase() || "X";
+  const planLabel = profileSummary?.tier === "premium" || profileSummary?.tier === "elite" ? "Premium" : "Free";
+
   return (
     <>
       <ScrollView className="flex-1 bg-white px-5 pt-14" contentContainerStyle={{ paddingBottom: 120 }}>
         <View className="flex-row items-center gap-4">
           <View className="h-16 w-16 items-center justify-center rounded-full bg-black">
-            <Text className="text-2xl font-semibold text-white">A</Text>
+            <Text className="text-2xl font-semibold text-white">{initial}</Text>
           </View>
           <View className="min-w-0 flex-1">
             <Text className="text-5xl font-normal leading-[44px] tracking-[-2px] text-black" numberOfLines={1} adjustsFontSizeToFit>
               Profile
             </Text>
-            <Text className="mt-1 text-base text-[#808080]">Xpirit athlete</Text>
+            <Text className="mt-1 text-base text-[#808080]" numberOfLines={1}>
+              {displayName}
+            </Text>
           </View>
         </View>
 
         <View className="mt-6 flex-row gap-3">
           <View className="flex-1 rounded-[24px] bg-[#f3f5f9] p-5">
             <Text className="text-sm font-semibold uppercase tracking-widest text-[#808080]">Streak</Text>
-            <Text className="mt-2 text-4xl font-normal tracking-[-1px] text-black">6</Text>
+            <Text className="mt-2 text-4xl font-normal tracking-[-1px] text-black">{profileSummary?.streakDays ?? "--"}</Text>
             <Text className="text-base font-semibold text-[#4a53ff]">days</Text>
           </View>
           <View className="flex-1 rounded-[24px] bg-[#f3f5f9] p-5">
             <Text className="text-sm font-semibold uppercase tracking-widest text-[#808080]">Achievements</Text>
-            <Text className="mt-2 text-4xl font-normal tracking-[-1px] text-black">12</Text>
-            <Text className="text-base font-semibold text-[#4a53ff]">active</Text>
+            <Text className="mt-2 text-4xl font-normal tracking-[-1px] text-black">{profileSummary?.achievementCount ?? "--"}</Text>
+            <Text className="text-base font-semibold text-[#4a53ff]">unlocked</Text>
           </View>
         </View>
 
         <View className="mt-5 rounded-[24px] bg-[#f3f5f9] p-5">
           <View className="flex-row items-center justify-between gap-3">
             <Text className="text-xl font-semibold tracking-[-0.6px] text-black">Achievements</Text>
-            <Text className="shrink text-right text-base text-[#808080]">Active now</Text>
+            <Text className="shrink text-right text-base text-[#808080]">Unlocked</Text>
           </View>
           <View className="mt-4 gap-3">
+            {achievements.length === 0 ? (
+              <Text className="px-1 text-base text-[#808080]">No achievements unlocked yet. Keep training!</Text>
+            ) : null}
             {achievements.map((item) => (
-              <View key={item.title} className="flex-row items-center justify-between gap-3 rounded-[24px] bg-white p-4">
+              <View key={item.id} className="flex-row items-center justify-between gap-3 rounded-[24px] bg-white p-4">
                 <View className="min-w-0 flex-1">
                   <Text className="text-base font-semibold text-black" numberOfLines={1}>
                     {item.title}
@@ -154,7 +176,7 @@ export default function ProfileScreen() {
             </View>
             <View className="flex-row justify-between gap-4">
               <Text className="text-base text-[#808080]">Plan</Text>
-              <Text className="text-base font-semibold text-black">Free</Text>
+              <Text className="text-base font-semibold text-black">{planLabel}</Text>
             </View>
           </View>
         </View>
