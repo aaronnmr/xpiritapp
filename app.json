@@ -14,7 +14,14 @@
           "locationWhenInUsePermission": "Xpirit uses your location while you track a run."
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Xpirit needs access to your photos so you can pick a background for your shared report.",
+          "cameraPermission": "Xpirit needs access to your camera so you can take a new photo for your shared report."
+        }
+      ]
     ],
     "ios": {
       "bundleIdentifier": "com.xpirit.app",

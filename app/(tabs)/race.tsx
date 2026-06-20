@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 
+import { useI18n } from "@/lib/i18n";
 import { XpiritDataService, type RunSessionRecord } from "@/services/xpirit-data-service";
 
 type RaceSession = {
@@ -14,6 +15,7 @@ type RaceSession = {
 const rangeOptions = ["This week", "Last week", "Last month", "Custom dates"];
 
 export default function RaceScreen() {
+  const { t } = useI18n();
   const [isRangeOpen, setIsRangeOpen] = useState(false);
   const [selectedRange, setSelectedRange] = useState("This week");
   const [customStart, setCustomStart] = useState("");
@@ -47,7 +49,7 @@ export default function RaceScreen() {
 
   return (
     <ScrollView className="flex-1 bg-white px-5 pt-14" contentContainerStyle={{ paddingBottom: 120 }}>
-      <Text className="text-sm font-semibold uppercase tracking-widest text-[#808080]">Race</Text>
+      <Text className="text-sm font-semibold uppercase tracking-widest text-[#808080]">{t("nav.race")}</Text>
       <Text className="mt-3 text-5xl font-normal leading-[44px] tracking-[-2px] text-black">Every run, ranked by signal.</Text>
 
       <View className="mt-6 overflow-hidden rounded-[24px] bg-black p-6">
