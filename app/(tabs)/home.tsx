@@ -4,28 +4,21 @@ import { Pressable, ScrollView, Text, View } from "react-native";
 
 import { AmplitudeService } from "@/services/amplitude-service";
 import { UnifiedDataService } from "@/services/unified-data-service";
-import { XpiritDataService, type DashboardSnapshot } from "@/services/xpirit-data-service";
+import { XpiritDataService, type DashboardSnapshot, type WeeklyDayLoad } from "@/services/xpirit-data-service";
 
-const weeklySessions = [
-  { day: "M", height: "h-16", active: true },
-  { day: "T", height: "h-20", active: true },
-  { day: "W", height: "h-10", active: false },
-  { day: "T", height: "h-24", active: true },
-  { day: "F", height: "h-12", active: false },
-  { day: "S", height: "h-8", active: false },
-  { day: "S", height: "h-14", active: false }
-];
+const weekdayLabels = ["M", "T", "W", "T", "F", "S", "S"];
 
 export default function DashboardScreen() {
   const [dashboardSnapshot, setDashboardSnapshot] = useState<DashboardSnapshot | null>(null);
   const [gpsFeedback, setGpsFeedback] = useState<string | null>(null);
   const [isRunActionPending, setIsRunActionPending] = useState(false);
   const [runSnapshot, setRunSnapshot] = useState(UnifiedDataService.getLiveRunSnapshot());
-  const [latestRun, setLatestRun] = useState({
-    distanceMeters: 5800,
-    durationSeconds: 1694,
-    paceSecondsPerKm: 292 as number | null
-  });
+  const [latestRun, setLatestRun] = useState<{
+    distanceMeters: number;
+    durationSeconds: number;
+    paceSecondsPerKm: number | null;
+  } | null>(null);
+  const [weeklyLoad, setWeeklyLoad] = useState<WeeklyDayLoad[]>([]);
 
   useEffect(() => {
     void refreshDashboardSnapshot();
@@ -38,7 +31,14 @@ export default function DashboardScreen() {
   }, []);
 
   const refreshDashboardSnapshot = async () => {
-    const snapshot = await XpiritDataService.getDashboardSnapshot();
+    const [snapshot, weeklyLoadRecords] = await Promise.all([
+      XpiritDataService.getDashboardSnapshot(),
+      XpiritDataService.getWeeklyLoad()
+    ]);
+
+    if (weeklyLoadRecords) {
+      setWeeklyLoad(weeklyLoadRecords);
+    }
 
     if (!snapshot) {
       return;
@@ -104,6 +104,7 @@ export default function DashboardScreen() {
   };
 
   const heroRun = runSnapshot.isTracking ? runSnapshot : latestRun;
+  const hasHeroRun = runSnapshot.isTracking || latestRun !== null;
 
   return (
     <ScrollView className="flex-1 bg-white px-5 pt-14" contentContainerStyle={{ paddingBottom: 120 }}>
@@ -117,47 +118,56 @@ export default function DashboardScreen() {
       <Pressable className="overflow-hidden rounded-[24px] bg-black p-6" onPress={() => router.push("/race")}>
         <View className="absolute right-[-60px] top-[-70px] h-44 w-44 rounded-full bg-[#4a53ff] opacity-35" />
         <Text className="text-sm font-semibold uppercase tracking-widest text-[#999999]">{runSnapshot.isTracking ? "Live Run" : "Latest Run"}</Text>
-        <View className="mt-5 flex-row items-end justify-between">
-          <View>
-            <Text className="text-6xl font-normal tracking-[-2px] text-white">{(heroRun.distanceMeters / 1000).toFixed(2)}</Text>
-            <Text className="mt-1 text-base text-[#999999]">km covered</Text>
-          </View>
-          <View className="items-end">
-            <Text className="text-4xl font-normal tracking-[-1px] text-white">{formatDuration(heroRun.durationSeconds)}</Text>
-            <Text className="mt-1 text-base text-[#999999]">duration</Text>
-          </View>
-        </View>
-        <Text className="mt-4 text-base font-semibold text-[#4a53ff]">{formatPace(heroRun.paceSecondsPerKm)} average pace</Text>
+        {hasHeroRun && heroRun ? (
+          <>
+            <View className="mt-5 flex-row items-end justify-between">
+              <View>
+                <Text className="text-6xl font-normal tracking-[-2px] text-white">{(heroRun.distanceMeters / 1000).toFixed(2)}</Text>
+                <Text className="mt-1 text-base text-[#999999]">km covered</Text>
+              </View>
+              <View className="items-end">
+                <Text className="text-4xl font-normal tracking-[-1px] text-white">{formatDuration(heroRun.durationSeconds)}</Text>
+                <Text className="mt-1 text-base text-[#999999]">duration</Text>
+              </View>
+            </View>
+            <Text className="mt-4 text-base font-semibold text-[#4a53ff]">{formatPace(heroRun.paceSecondsPerKm)} average pace</Text>
+          </>
+        ) : (
+          <Text className="mt-5 text-base text-[#999999]">No runs tracked yet. Tap to start your first Live Run.</Text>
+        )}
         <View className="mt-6 h-2 overflow-hidden rounded-full bg-[#191919]">
-          <View className={`h-full rounded-full bg-[#4a53ff] ${runSnapshot.isTracking ? "w-[42%]" : "w-[72%]"}`} />
+          <View className={`h-full rounded-full bg-[#4a53ff] ${runSnapshot.isTracking ? "w-[42%]" : "w-0"}`} />
         </View>
       </Pressable>
 
       <View className="mt-4 flex-row gap-3">
         <Pressable className="flex-1 rounded-[24px] bg-[#f3f5f9] p-5" onPress={() => router.push("/gym")}>
           <Text className="text-sm font-semibold uppercase tracking-widest text-[#808080]">Weekly Workouts</Text>
-          <Text className="mt-3 text-4xl font-normal tracking-[-1px] text-black">{dashboardSnapshot?.weeklyWorkoutCount ?? 3}</Text>
-          <Text className="mt-1 text-base font-semibold text-[#4a53ff]">+1 vs last week</Text>
+          <Text className="mt-3 text-4xl font-normal tracking-[-1px] text-black">{dashboardSnapshot?.weeklyWorkoutCount ?? "--"}</Text>
         </Pressable>
         <View className="flex-1 rounded-[24px] bg-[#f3f5f9] p-5">
           <Text className="text-sm font-semibold uppercase tracking-widest text-[#808080]">Recovery</Text>
-          <Text className="mt-3 text-4xl font-normal tracking-[-1px] text-black">18h</Text>
-          <Text className="mt-1 text-base font-semibold text-[#4a53ff]">recommended</Text>
+          <Text className="mt-3 text-4xl font-normal tracking-[-1px] text-black">--</Text>
+          <Text className="mt-1 text-base font-semibold text-[#4a53ff]">coming soon</Text>
         </View>
       </View>
 
       <View className="mt-4 rounded-[24px] bg-[#f3f5f9] p-5">
         <View className="flex-row items-center justify-between">
           <Text className="text-xl font-semibold tracking-[-0.6px] text-black">Weekly Load</Text>
-          <Text className="text-base text-[#808080]">3 / 5 goal</Text>
+          <Text className="text-base text-[#808080]">{weeklyLoad.filter((day) => day.hasActivity).length} active days</Text>
         </View>
         <View className="mt-5 h-28 flex-row items-end justify-between">
-          {weeklySessions.map((item, index) => (
-            <View key={`${item.day}-${index}`} className="items-center gap-2">
-              <View className={`w-7 rounded-full ${item.height} ${item.active ? "bg-[#4a53ff]" : "bg-[#e5e7eb]"}`} />
-              <Text className={`text-xs font-semibold ${item.active ? "text-black" : "text-[#999999]"}`}>{item.day}</Text>
-            </View>
-          ))}
+          {weeklyLoad.map((day, index) => {
+            const barHeightClass = day.workoutCount === 0 ? "h-2" : day.workoutCount === 1 ? "h-16" : "h-24";
+
+            return (
+              <View key={day.isoDate} className="items-center gap-2">
+                <View className={`w-7 rounded-full ${barHeightClass} ${day.hasActivity ? "bg-[#4a53ff]" : "bg-[#e5e7eb]"}`} />
+                <Text className={`text-xs font-semibold ${day.hasActivity ? "text-black" : "text-[#999999]"}`}>{weekdayLabels[index]}</Text>
+              </View>
+            );
+          })}
         </View>
       </View>
 
