@@ -1,12 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 
-const sessions = [
-  { distance: "5.8 km", pace: "4:52", title: "Latest Run", date: "Jun 11, 2026", isoDate: "2026-06-11" },
-  { distance: "7.2 km", pace: "5:08", title: "Tempo Run", date: "Jun 9, 2026", isoDate: "2026-06-09" },
-  { distance: "4.1 km", pace: "5:34", title: "Easy Run", date: "Jun 7, 2026", isoDate: "2026-06-07" },
-  { distance: "9.6 km", pace: "5:21", title: "Long Run", date: "Jun 5, 2026", isoDate: "2026-06-05" }
-];
+import { XpiritDataService, type RunSessionRecord } from "@/services/xpirit-data-service";
+
+type RaceSession = {
+  date: string;
+  distance: string;
+  isoDate: string;
+  pace: string;
+  title: string;
+};
 
 const rangeOptions = ["This week", "Last week", "Last month", "Custom dates"];
 
@@ -15,8 +18,27 @@ export default function RaceScreen() {
   const [selectedRange, setSelectedRange] = useState("This week");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
+  const [sessions, setSessions] = useState<RaceSession[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const customDateError = getCustomDateError(customStart, customEnd);
   const visibleSessions = sessions.filter((session) => isInsideRange(session.isoDate, selectedRange, customStart, customEnd));
+  const latestRun = sessions[0] ?? null;
+
+  useEffect(() => {
+    void loadSessions();
+  }, []);
+
+  async function loadSessions() {
+    setIsLoading(true);
+    const records = await XpiritDataService.getRunSessions();
+    setIsLoading(false);
+
+    if (!records) {
+      return;
+    }
+
+    setSessions(records.map(toRaceSession));
+  }
 
   const selectRange = (range: string) => {
     setSelectedRange(range);
@@ -31,16 +53,20 @@ export default function RaceScreen() {
       <View className="mt-6 overflow-hidden rounded-[24px] bg-black p-6">
         <View className="absolute right-[-52px] top-[-60px] h-40 w-40 rounded-full bg-[#4a53ff] opacity-40" />
         <Text className="text-sm font-semibold uppercase tracking-widest text-[#999999]">Latest Run</Text>
-        <View className="mt-5 flex-row items-end justify-between">
-          <View>
-            <Text className="text-6xl font-normal tracking-[-2px] text-white">5.8</Text>
-            <Text className="mt-1 text-base text-[#999999]">km latest session</Text>
+        {latestRun ? (
+          <View className="mt-5 flex-row items-end justify-between">
+            <View>
+              <Text className="text-6xl font-normal tracking-[-2px] text-white">{latestRun.distance.replace(" km", "")}</Text>
+              <Text className="mt-1 text-base text-[#999999]">km latest session</Text>
+            </View>
+            <View className="items-end">
+              <Text className="text-4xl font-normal tracking-[-1px] text-white">{latestRun.pace}</Text>
+              <Text className="mt-1 text-base text-[#999999]">pace /km</Text>
+            </View>
           </View>
-          <View className="items-end">
-            <Text className="text-4xl font-normal tracking-[-1px] text-white">4:52</Text>
-            <Text className="mt-1 text-base text-[#999999]">pace /km</Text>
-          </View>
-        </View>
+        ) : (
+          <Text className="mt-5 text-base text-[#999999]">{isLoading ? "Loading…" : "No runs tracked yet. Start a Live Run from Home."}</Text>
+        )}
       </View>
 
       <View className="mt-6 flex-row items-center justify-between gap-3">
@@ -99,6 +125,10 @@ export default function RaceScreen() {
       ) : null}
 
       <View className="mt-3 gap-3">
+        {isLoading ? <Text className="px-1 text-base text-[#808080]">Loading your runs…</Text> : null}
+        {!isLoading && visibleSessions.length === 0 ? (
+          <Text className="px-1 text-base text-[#808080]">No runs in this range yet.</Text>
+        ) : null}
         {visibleSessions.map((session) => (
           <View key={`${session.title}-${session.date}`} className="rounded-[24px] bg-[#f3f5f9] p-5">
             <View className="flex-row items-center justify-between gap-3">
@@ -118,6 +148,39 @@ export default function RaceScreen() {
       </View>
     </ScrollView>
   );
+}
+
+function toRaceSession(record: RunSessionRecord): RaceSession {
+  const startedAt = new Date(record.startedAt);
+
+  return {
+    date: formatDateLabel(startedAt),
+    distance: `${(record.distanceMeters / 1000).toFixed(1)} km`,
+    isoDate: record.startedAt.slice(0, 10),
+    pace: formatPace(record.paceSecondsPerKm),
+    title: record.name
+  };
+}
+
+function formatDateLabel(date: Date) {
+  return date.toLocaleDateString("en-US", {
+    day: "numeric",
+    month: "short",
+    year: "numeric"
+  });
+}
+
+function formatPace(secondsPerKm: number | null) {
+  if (!secondsPerKm) {
+    return "--:--";
+  }
+
+  const minutes = Math.floor(secondsPerKm / 60);
+  const seconds = Math.round(secondsPerKm % 60)
+    .toString()
+    .padStart(2, "0");
+
+  return `${minutes}:${seconds}`;
 }
 
 function formatDateInput(value: string) {
@@ -149,15 +212,39 @@ function isInsideRange(isoDate: string, selectedRange: string, customStart: stri
     return isoDate >= customStart && isoDate <= customEnd;
   }
 
+  const today = new Date();
+  const dayOfWeek = today.getDay();
+  const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+
+  const startOfThisWeek = new Date(today);
+  startOfThisWeek.setDate(today.getDate() - daysSinceMonday);
+  startOfThisWeek.setHours(0, 0, 0, 0);
+
   if (selectedRange === "Last week") {
-    return isoDate >= "2026-06-02" && isoDate <= "2026-06-08";
+    const startOfLastWeek = addDays(startOfThisWeek, -7);
+    const endOfLastWeek = addDays(startOfThisWeek, -1);
+    return isoDate >= formatIsoDate(startOfLastWeek) && isoDate <= formatIsoDate(endOfLastWeek);
   }
 
   if (selectedRange === "Last month") {
-    return isoDate >= "2026-05-01" && isoDate <= "2026-05-31";
+    const firstOfThisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const firstOfLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    const lastOfLastMonth = addDays(firstOfThisMonth, -1);
+    return isoDate >= formatIsoDate(firstOfLastMonth) && isoDate <= formatIsoDate(lastOfLastMonth);
   }
 
-  return isoDate >= "2026-06-09" && isoDate <= "2026-06-15";
+  const endOfThisWeek = addDays(startOfThisWeek, 6);
+  return isoDate >= formatIsoDate(startOfThisWeek) && isoDate <= formatIsoDate(endOfThisWeek);
+}
+
+function addDays(date: Date, days: number) {
+  const result = new Date(date);
+  result.setDate(result.getDate() + days);
+  return result;
+}
+
+function formatIsoDate(date: Date) {
+  return date.toISOString().slice(0, 10);
 }
 
 function isValidIsoDate(value: string) {
