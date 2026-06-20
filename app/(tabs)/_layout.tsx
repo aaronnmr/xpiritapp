@@ -2,16 +2,25 @@ import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import { Pressable, Text, useWindowDimensions, View } from "react-native";
 
-const tabs = {
-  home: { icon: "analytics", label: "Home" },
-  gym: { icon: "fitness", label: "Gym" },
-  race: { icon: "speedometer", label: "Race" },
-  profile: { icon: "person", label: "Profile" }
-} satisfies Record<string, { icon: keyof typeof Ionicons.glyphMap; label: string }>;
+import { useI18n } from "@/lib/i18n";
+
+const tabIcons = {
+  gym: "fitness",
+  home: "analytics",
+  profile: "person",
+  race: "speedometer"
+} satisfies Record<string, keyof typeof Ionicons.glyphMap>;
 
 function BubbleTabBar({ navigation, state }: { navigation: any; state: any }) {
   const { width } = useWindowDimensions();
+  const { t } = useI18n();
   const barWidth = Math.min(286, width - 112);
+  const tabLabels: Record<keyof typeof tabIcons, string> = {
+    gym: "Gym",
+    home: "Home",
+    profile: t("nav.profile"),
+    race: t("nav.race")
+  };
 
   return (
     <View
@@ -34,10 +43,10 @@ function BubbleTabBar({ navigation, state }: { navigation: any; state: any }) {
         width: barWidth
       }}
     >
-      {state.routes.map((route: { key: string; name: keyof typeof tabs }, index: number) => {
-        const item = tabs[route.name];
+      {state.routes.map((route: { key: string; name: keyof typeof tabIcons }, index: number) => {
+        const icon = tabIcons[route.name];
 
-        if (!item) {
+        if (!icon) {
           return null;
         }
 
@@ -56,7 +65,7 @@ function BubbleTabBar({ navigation, state }: { navigation: any; state: any }) {
               width: 64
             }}
           >
-            <Ionicons name={item.icon} color={color} size={23} />
+            <Ionicons name={icon} color={color} size={23} />
             <Text
               style={{
                 color,
@@ -67,7 +76,7 @@ function BubbleTabBar({ navigation, state }: { navigation: any; state: any }) {
                 textTransform: "uppercase"
               }}
             >
-              {item.label}
+              {tabLabels[route.name]}
             </Text>
           </Pressable>
         );
