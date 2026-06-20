@@ -100,6 +100,16 @@ export type ReportCardInput = {
   title: string;
 };
 
+export type WeeklyReportSummary = {
+  avgPaceSecondsPerKm: number | null;
+  longestRunMeters: number;
+  sessionCount: number;
+  topGymSet: { activity: string; reps: number; weightKg: number } | null;
+  totalDistanceMeters: number;
+  totalDurationSeconds: number;
+  weekNumber: number;
+};
+
 export const XpiritDataService = {
   async ensureProfile(locale = "en") {
     const user = await getCurrentUser();
@@ -283,6 +293,64 @@ export const XpiritDataService = {
 
       return { hasActivity: workoutCount > 0, isoDate, workoutCount };
     });
+  },
+
+  async getWeeklyReportSummary(): Promise<WeeklyReportSummary | null> {
+    const user = await getCurrentUser();
+
+    if (!user || !supabase) {
+      return null;
+    }
+
+    const weekStart = getWeekStartIso();
+
+    const [{ data: runs, error: runsError }, { data: gymSets, error: gymError }] = await Promise.all([
+      supabase
+        .from("activities")
+        .select("distance_meters,duration_seconds")
+        .eq("user_id", user.id)
+        .eq("type", "run")
+        .gte("started_at", weekStart),
+      supabase
+        .from("gym_sets")
+        .select("reps,weight_kg,gym_exercises(name)")
+        .eq("user_id", user.id)
+        .gte("completed_at", weekStart)
+        .order("weight_kg", { ascending: false, nullsFirst: false })
+        .limit(1)
+    ]);
+
+    if (runsError) {
+      warnSupabase("getWeeklyReportSummary.activities", runsError);
+    }
+
+    if (gymError) {
+      warnSupabase("getWeeklyReportSummary.gymSets", gymError);
+    }
+
+    const runRows = (runs ?? []) as Array<{ distance_meters: number | null; duration_seconds: number | null }>;
+    const totalDistanceMeters = runRows.reduce((sum, run) => sum + Number(run.distance_meters ?? 0), 0);
+    const totalDurationSeconds = runRows.reduce((sum, run) => sum + Number(run.duration_seconds ?? 0), 0);
+    const longestRunMeters = runRows.reduce((max, run) => Math.max(max, Number(run.distance_meters ?? 0)), 0);
+
+    const topGymRow = ((gymSets ?? [])[0] as unknown as RawGymSetRow & { weight_kg: number | null }) ?? null;
+
+    return {
+      avgPaceSecondsPerKm: getPaceSecondsPerKm(totalDistanceMeters, totalDurationSeconds),
+      longestRunMeters,
+      sessionCount: runRows.length,
+      topGymSet:
+        topGymRow && topGymRow.weight_kg
+          ? {
+              activity: topGymRow.gym_exercises?.name ?? "Custom activity",
+              reps: Number(topGymRow.reps ?? 0),
+              weightKg: Number(topGymRow.weight_kg)
+            }
+          : null,
+      totalDistanceMeters,
+      totalDurationSeconds,
+      weekNumber: getIsoWeekNumber(new Date())
+    };
   },
 
   async getProfileSummary(): Promise<ProfileSummary | null> {
@@ -743,6 +811,15 @@ function getPaceSecondsPerKm(distanceMeters: number, durationSeconds: number) {
   }
 
   return durationSeconds / (distanceMeters / 1000);
+}
+
+function getIsoWeekNumber(date: Date) {
+  const target = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNumber = target.getUTCDay() || 7;
+  target.setUTCDate(target.getUTCDate() + 4 - dayNumber);
+  const yearStart = new Date(Date.UTC(target.getUTCFullYear(), 0, 1));
+
+  return Math.ceil(((target.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
 }
 
 function getWeekStartIso() {
