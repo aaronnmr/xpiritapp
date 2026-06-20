@@ -18,7 +18,21 @@ type TranslationKey =
   | "auth.status.requestingHealth"
   | "auth.status.routing"
   | "auth.subtitle"
-  | "language.title";
+  | "language.title"
+  | "nav.profile"
+  | "nav.race"
+  | "profile.achievements"
+  | "profile.streak"
+  | "report.activeDays"
+  | "report.avgPace"
+  | "report.avgPerRun"
+  | "report.keepMoving"
+  | "report.longestRun"
+  | "report.sessions"
+  | "report.title"
+  | "report.totalDistance"
+  | "report.totalTime"
+  | "report.week";
 
 type I18nContextValue = {
   detectedLocale: AppLocale;
@@ -45,7 +59,21 @@ const translations: Record<AppLocale, Record<TranslationKey, string>> = {
     "auth.status.requestingHealth": "Zugriff auf Gesundheitsdaten wird angefragt",
     "auth.status.routing": "Dashboard wird aufgebaut",
     "auth.subtitle": "Verfolge dein Ziel. Erhole dich mit Absicht.",
-    "language.title": "Sprache"
+    "language.title": "Sprache",
+    "nav.profile": "Profil",
+    "nav.race": "Lauf",
+    "profile.achievements": "Erfolge",
+    "profile.streak": "Serie",
+    "report.activeDays": "Active days",
+    "report.avgPace": "Avg pace",
+    "report.avgPerRun": "Avg per run",
+    "report.keepMoving": "Keep moving",
+    "report.longestRun": "Longest run",
+    "report.sessions": "Sessions",
+    "report.title": "Weekly report",
+    "report.totalDistance": "Total distance",
+    "report.totalTime": "Total time",
+    "report.week": "Week"
   },
   en: {
     "auth.apple": "Continue with Apple",
@@ -61,7 +89,21 @@ const translations: Record<AppLocale, Record<TranslationKey, string>> = {
     "auth.status.requestingHealth": "Requesting health repository access",
     "auth.status.routing": "Building your dashboard",
     "auth.subtitle": "Track your goal. Recover with intent.",
-    "language.title": "Language"
+    "language.title": "Language",
+    "nav.profile": "Profile",
+    "nav.race": "Race",
+    "profile.achievements": "Achievements",
+    "profile.streak": "Streak",
+    "report.activeDays": "Active days",
+    "report.avgPace": "Avg pace",
+    "report.avgPerRun": "Avg per run",
+    "report.keepMoving": "Keep moving",
+    "report.longestRun": "Longest run",
+    "report.sessions": "Sessions",
+    "report.title": "Weekly report",
+    "report.totalDistance": "Total distance",
+    "report.totalTime": "Total time",
+    "report.week": "Week"
   },
   es: {
     "auth.apple": "Continuar con Apple",
@@ -77,7 +119,21 @@ const translations: Record<AppLocale, Record<TranslationKey, string>> = {
     "auth.status.requestingHealth": "Solicitando acceso a datos de salud",
     "auth.status.routing": "Creando tu dashboard",
     "auth.subtitle": "Sigue tu objetivo. Recupera con intencion.",
-    "language.title": "Idioma"
+    "language.title": "Idioma",
+    "nav.profile": "Perfil",
+    "nav.race": "Run",
+    "profile.achievements": "Logros",
+    "profile.streak": "Racha",
+    "report.activeDays": "Dias activos",
+    "report.avgPace": "Ritmo medio",
+    "report.avgPerRun": "Media por carrera",
+    "report.keepMoving": "Sigue en marcha",
+    "report.longestRun": "Carrera mas larga",
+    "report.sessions": "Sesiones",
+    "report.title": "Informe semanal",
+    "report.totalDistance": "Distancia total",
+    "report.totalTime": "Tiempo total",
+    "report.week": "Semana"
   }
 };
 
