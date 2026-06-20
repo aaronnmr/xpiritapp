@@ -1,16 +1,47 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import * as Sharing from "expo-sharing";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import ViewShot from "react-native-view-shot";
 
 import { AmplitudeService } from "@/services/amplitude-service";
-import { XpiritDataService } from "@/services/xpirit-data-service";
+import { XpiritDataService, type DashboardSnapshot, type WeeklyDayLoad } from "@/services/xpirit-data-service";
+
+const weekdayLabels = ["M", "T", "W", "T", "F", "S", "S"];
 
 export default function ReportScreen() {
   const reportRef = useRef<ViewShot>(null);
   const [isSharing, setIsSharing] = useState(false);
+  const [snapshot, setSnapshot] = useState<DashboardSnapshot | null>(null);
+  const [weeklyLoad, setWeeklyLoad] = useState<WeeklyDayLoad[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    void loadReportData();
+  }, []);
+
+  async function loadReportData() {
+    setIsLoading(true);
+    const [dashboardSnapshot, weeklyLoadRecords] = await Promise.all([
+      XpiritDataService.getDashboardSnapshot(),
+      XpiritDataService.getWeeklyLoad()
+    ]);
+    setIsLoading(false);
+
+    if (dashboardSnapshot) {
+      setSnapshot(dashboardSnapshot);
+    }
+
+    if (weeklyLoadRecords) {
+      setWeeklyLoad(weeklyLoadRecords);
+    }
+  }
+
+  const bestRunKm = snapshot?.latestRun ? snapshot.latestRun.distanceMeters / 1000 : 0;
+  const bestRunPace = formatPace(snapshot?.latestRun?.paceSecondsPerKm ?? null);
+  const workoutCount = snapshot?.weeklyWorkoutCount ?? 0;
+  const maxDailyBarHeight = 64;
 
   const shareReport = async () => {
     if (!reportRef.current?.capture) {
@@ -27,9 +58,9 @@ export default function ReportScreen() {
       await XpiritDataService.saveReportCard({
         imageUrl: uri,
         metrics: {
-          best_run_km: 5.8,
-          recovery_hours: 18,
-          workouts: 3
+          best_run_km: Number(bestRunKm.toFixed(2)),
+          best_run_pace: bestRunPace,
+          workouts: workoutCount
         },
         periodEnd: new Date().toISOString().slice(0, 10),
         periodStart: getSevenDaysAgo(),
@@ -78,33 +109,34 @@ export default function ReportScreen() {
             <View className="mt-6 overflow-hidden rounded-[24px] bg-black p-5">
               <View className="absolute right-[-50px] top-[-52px] h-36 w-36 rounded-full bg-[#4a53ff] opacity-55" />
               <Text className="text-xs font-semibold uppercase tracking-widest text-[#999999]">Best run</Text>
-              <Text className="mt-3 text-6xl font-normal tracking-[-2px] text-white">5.8</Text>
+              <Text className="mt-3 text-6xl font-normal tracking-[-2px] text-white">{isLoading ? "--" : bestRunKm.toFixed(1)}</Text>
               <Text className="mt-1 text-base text-[#999999]">km covered</Text>
-              <Text className="mt-4 text-2xl font-semibold text-[#4a53ff]">4:52 /km</Text>
+              <Text className="mt-4 text-2xl font-semibold text-[#4a53ff]">{isLoading ? "--:--" : bestRunPace} /km</Text>
             </View>
 
             <View className="mt-4 flex-row gap-3">
               <View className="flex-1 rounded-[22px] bg-[#f3f5f9] p-4">
                 <Text className="text-xs font-semibold uppercase tracking-widest text-[#808080]">Workouts</Text>
-                <Text className="mt-2 text-4xl font-normal text-black">3</Text>
+                <Text className="mt-2 text-4xl font-normal text-black">{isLoading ? "--" : workoutCount}</Text>
               </View>
               <View className="flex-1 rounded-[22px] bg-[#f3f5f9] p-4">
-                <Text className="text-xs font-semibold uppercase tracking-widest text-[#808080]">Recovery</Text>
-                <Text className="mt-2 text-4xl font-normal text-black">18h</Text>
+                <Text className="text-xs font-semibold uppercase tracking-widest text-[#808080]">Active days</Text>
+                <Text className="mt-2 text-4xl font-normal text-black">{isLoading ? "--" : weeklyLoad.filter((d) => d.hasActivity).length}</Text>
               </View>
             </View>
 
             <View className="mt-4 rounded-[24px] bg-[#f3f5f9] p-4">
               <View className="flex-row items-end justify-between">
-                {[42, 62, 30, 82, 38, 22, 50].map((height, index) => (
-                  <View key={`${height}-${index}`} className="items-center gap-2">
-                    <View
-                      className={`w-6 rounded-full ${index === 0 || index === 1 || index === 3 ? "bg-[#4a53ff]" : "bg-[#dfe3ee]"}`}
-                      style={{ height }}
-                    />
-                    <Text className="text-[10px] font-semibold text-[#808080]">{["M", "T", "W", "T", "F", "S", "S"][index]}</Text>
-                  </View>
-                ))}
+                {weeklyLoad.map((day, index) => {
+                  const barHeight = day.workoutCount === 0 ? 4 : Math.min(maxDailyBarHeight, 24 + day.workoutCount * 20);
+
+                  return (
+                    <View key={day.isoDate} className="items-center gap-2">
+                      <View className={`w-6 rounded-full ${day.hasActivity ? "bg-[#4a53ff]" : "bg-[#dfe3ee]"}`} style={{ height: barHeight }} />
+                      <Text className="text-[10px] font-semibold text-[#808080]">{weekdayLabels[index]}</Text>
+                    </View>
+                  );
+                })}
               </View>
             </View>
 
@@ -126,6 +158,19 @@ export default function ReportScreen() {
       </Pressable>
     </View>
   );
+}
+
+function formatPace(secondsPerKm: number | null) {
+  if (!secondsPerKm) {
+    return "--:--";
+  }
+
+  const minutes = Math.floor(secondsPerKm / 60);
+  const seconds = Math.round(secondsPerKm % 60)
+    .toString()
+    .padStart(2, "0");
+
+  return `${minutes}:${seconds}`;
 }
 
 function getSevenDaysAgo() {
