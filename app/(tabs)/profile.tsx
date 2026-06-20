@@ -2,12 +2,14 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { PremiumCheckoutModal } from "../../src/components/premium-checkout-modal";
+import { useI18n } from "../../src/lib/i18n";
 import { AmplitudeService } from "../../src/services/amplitude-service";
 import { supabase } from "../../src/lib/supabase";
 import { RevenueCatService, type RevenueCatProductId } from "../../src/services/revenuecat-service";
 import { XpiritDataService, type ProfileSummary, type UnlockedAchievement } from "../../src/services/xpirit-data-service";
 
 export default function ProfileScreen() {
+  const { t } = useI18n();
   const params = useLocalSearchParams<{ paywall?: string }>();
   const [isPremiumOpen, setIsPremiumOpen] = useState(false);
   const [isPlanOpen, setIsPlanOpen] = useState(false);
@@ -123,7 +125,7 @@ export default function ProfileScreen() {
           </View>
           <View className="min-w-0 flex-1">
             <Text className="text-5xl font-normal leading-[44px] tracking-[-2px] text-black" numberOfLines={1} adjustsFontSizeToFit>
-              Profile
+              {t("nav.profile")}
             </Text>
             <Text className="mt-1 text-base text-[#808080]" numberOfLines={1}>
               {displayName}
@@ -133,12 +135,12 @@ export default function ProfileScreen() {
 
         <View className="mt-6 flex-row gap-3">
           <View className="flex-1 rounded-[24px] bg-[#f3f5f9] p-5">
-            <Text className="text-sm font-semibold uppercase tracking-widest text-[#808080]">Streak</Text>
+            <Text className="text-sm font-semibold uppercase tracking-widest text-[#808080]">{t("profile.streak")}</Text>
             <Text className="mt-2 text-4xl font-normal tracking-[-1px] text-black">{profileSummary?.streakDays ?? "--"}</Text>
             <Text className="text-base font-semibold text-[#4a53ff]">days</Text>
           </View>
           <View className="flex-1 rounded-[24px] bg-[#f3f5f9] p-5">
-            <Text className="text-sm font-semibold uppercase tracking-widest text-[#808080]">Achievements</Text>
+            <Text className="text-sm font-semibold uppercase tracking-widest text-[#808080]">{t("profile.achievements")}</Text>
             <Text className="mt-2 text-4xl font-normal tracking-[-1px] text-black">{profileSummary?.achievementCount ?? "--"}</Text>
             <Text className="text-base font-semibold text-[#4a53ff]">unlocked</Text>
           </View>
@@ -146,7 +148,7 @@ export default function ProfileScreen() {
 
         <View className="mt-5 rounded-[24px] bg-[#f3f5f9] p-5">
           <View className="flex-row items-center justify-between gap-3">
-            <Text className="text-xl font-semibold tracking-[-0.6px] text-black">Achievements</Text>
+            <Text className="text-xl font-semibold tracking-[-0.6px] text-black">{t("profile.achievements")}</Text>
             <Text className="shrink text-right text-base text-[#808080]">Unlocked</Text>
           </View>
           <View className="mt-4 gap-3">
