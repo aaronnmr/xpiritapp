@@ -145,11 +145,17 @@ export default function DashboardScreen() {
           <Text className="text-sm font-semibold uppercase tracking-widest text-[#808080]">Weekly Workouts</Text>
           <Text className="mt-3 text-4xl font-normal tracking-[-1px] text-black">{dashboardSnapshot?.weeklyWorkoutCount ?? "--"}</Text>
         </Pressable>
-        <View className="flex-1 rounded-[24px] bg-[#f3f5f9] p-5">
+        <Pressable
+          className="flex-1 rounded-[24px] bg-[#f3f5f9] p-5"
+          onPress={() => {
+            AmplitudeService.track("premium_paywall_opened", { source: "home_recovery_card" });
+            router.push("/profile?paywall=1");
+          }}
+        >
           <Text className="text-sm font-semibold uppercase tracking-widest text-[#808080]">Recovery</Text>
           <Text className="mt-3 text-4xl font-normal tracking-[-1px] text-black">--</Text>
           <Text className="mt-1 text-base font-semibold text-[#4a53ff]">coming soon</Text>
-        </View>
+        </Pressable>
       </View>
 
       <View className="mt-4 rounded-[24px] bg-[#f3f5f9] p-5">
@@ -170,6 +176,19 @@ export default function DashboardScreen() {
           })}
         </View>
       </View>
+
+      <Pressable
+        className="mt-4 flex-row items-center justify-between rounded-[24px] bg-black p-5"
+        onPress={() => router.push("/report")}
+      >
+        <View>
+          <Text className="text-sm font-semibold uppercase tracking-widest text-[#999999]">Weekly Report</Text>
+          <Text className="mt-2 text-xl font-semibold text-white">Share your week</Text>
+        </View>
+        <View className="h-11 w-11 items-center justify-center rounded-full bg-[#4a53ff]">
+          <Text className="text-lg font-semibold text-white">→</Text>
+        </View>
+      </Pressable>
 
       <View className="mt-5 rounded-[24px] bg-black p-5">
         <View className="flex-row items-center justify-between">
