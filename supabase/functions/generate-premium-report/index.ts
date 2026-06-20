@@ -71,6 +71,8 @@ async function fetchWeeklyMetrics(
     console.error("Error fetching achievements:", achievementsError);
   }
 
+  const streak = await calculateActiveStreakDays(userId);
+
   // Calculate metrics
   const activitiesData = (activities || []) as Array<{
     type: string;
@@ -107,12 +109,47 @@ async function fetchWeeklyMetrics(
     strengthVolume: Math.round(strengthVolume),
     strengthSessions: gymData.length,
     totalWorkouts: activitiesData.length + gymData.length,
-    streak: 6, // TODO: calculate from training_load_daily
+    streak,
     achievements: (achievements || []).map((a: any) => ({
       title: a.achievements?.title || "Achievement",
       description: a.achievements?.description,
     })),
   };
+}
+
+// Calculate the user's current consecutive-day activity streak (runs or gym workouts), ending today.
+async function calculateActiveStreakDays(userId: string): Promise<number> {
+  const [{ data: runs }, { data: gymWorkouts }] = await Promise.all([
+    supabase
+      .from("activities")
+      .select("started_at")
+      .eq("user_id", userId)
+      .order("started_at", { ascending: false })
+      .limit(90),
+    supabase
+      .from("gym_workouts")
+      .select("started_at")
+      .eq("user_id", userId)
+      .order("started_at", { ascending: false })
+      .limit(90),
+  ]);
+
+  const activeDates = new Set(
+    [...(runs || []), ...(gymWorkouts || [])].map((row: { started_at: string }) =>
+      row.started_at.slice(0, 10)
+    )
+  );
+
+  let streak = 0;
+  const cursor = new Date();
+  cursor.setUTCHours(0, 0, 0, 0);
+
+  while (activeDates.has(cursor.toISOString().slice(0, 10))) {
+    streak += 1;
+    cursor.setUTCDate(cursor.getUTCDate() - 1);
+  }
+
+  return streak;
 }
 
 // Generate HTML template with injected metrics
