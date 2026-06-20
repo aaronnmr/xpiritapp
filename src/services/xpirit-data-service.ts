@@ -12,6 +12,25 @@ type DashboardActivity = {
   type: string;
 };
 
+type RawRunRow = DashboardActivity & {
+  route_polyline: string | null;
+};
+
+type RawGymSetRow = {
+  completed_at: string | null;
+  created_at: string;
+  gym_exercises: { name: string } | null;
+  id: string;
+  reps: number | null;
+  weight_kg: number | null;
+};
+
+type RawUserAchievementRow = {
+  achievements: { description: string | null; title: string } | null;
+  id: string;
+  unlocked_at: string;
+};
+
 export type DashboardSnapshot = {
   latestRun: {
     distanceMeters: number;
@@ -33,6 +52,44 @@ export type GymSetInput = {
   activity: string;
   reps: number;
   weightKg: number;
+};
+
+export type GymSetRecord = {
+  activity: string;
+  completedAt: string;
+  id: string;
+  reps: number;
+  weightKg: number;
+};
+
+export type RunSessionRecord = {
+  distanceMeters: number;
+  durationSeconds: number;
+  id: string;
+  name: string;
+  paceSecondsPerKm: number | null;
+  routePolyline: string | null;
+  startedAt: string;
+};
+
+export type WeeklyDayLoad = {
+  hasActivity: boolean;
+  isoDate: string;
+  workoutCount: number;
+};
+
+export type ProfileSummary = {
+  achievementCount: number;
+  displayName: string;
+  streakDays: number;
+  tier: string;
+};
+
+export type UnlockedAchievement = {
+  detail: string;
+  id: string;
+  title: string;
+  unlockedAt: string;
 };
 
 export type ReportCardInput = {
@@ -150,6 +207,166 @@ export const XpiritDataService = {
       previousRuns: formattedRuns.slice(1),
       weeklyWorkoutCount: count ?? 0
     };
+  },
+
+  async getRunSessions(limit = 30): Promise<RunSessionRecord[] | null> {
+    const user = await getCurrentUser();
+
+    if (!user || !supabase) {
+      return null;
+    }
+
+    const { data, error } = await supabase
+      .from("activities")
+      .select("id,name,type,started_at,duration_seconds,distance_meters,route_polyline")
+      .eq("user_id", user.id)
+      .eq("type", "run")
+      .order("started_at", { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      warnSupabase("getRunSessions", error);
+      return null;
+    }
+
+    return ((data ?? []) as unknown as RawRunRow[]).map((activity) => {
+      const distanceMeters = Number(activity.distance_meters ?? 0);
+      const durationSeconds = Number(activity.duration_seconds ?? 0);
+
+      return {
+        distanceMeters,
+        durationSeconds,
+        id: activity.id,
+        name: activity.name ?? "Outdoor Run",
+        paceSecondsPerKm: getPaceSecondsPerKm(distanceMeters, durationSeconds),
+        routePolyline: activity.route_polyline ?? null,
+        startedAt: activity.started_at
+      };
+    });
+  },
+
+  async getWeeklyLoad(): Promise<WeeklyDayLoad[] | null> {
+    const user = await getCurrentUser();
+
+    if (!user || !supabase) {
+      return null;
+    }
+
+    const weekStart = getWeekStartIso();
+    const weekStartDate = new Date(weekStart);
+
+    const [{ data: runs, error: runsError }, { data: gymWorkouts, error: gymError }] = await Promise.all([
+      supabase.from("activities").select("started_at").eq("user_id", user.id).gte("started_at", weekStart),
+      supabase.from("gym_workouts").select("started_at").eq("user_id", user.id).gte("started_at", weekStart)
+    ]);
+
+    if (runsError) {
+      warnSupabase("getWeeklyLoad.activities", runsError);
+    }
+
+    if (gymError) {
+      warnSupabase("getWeeklyLoad.gymWorkouts", gymError);
+    }
+
+    const countsByIsoDate = new Map<string, number>();
+
+    for (const row of [...(runs ?? []), ...(gymWorkouts ?? [])] as Array<{ started_at: string }>) {
+      const isoDate = row.started_at.slice(0, 10);
+      countsByIsoDate.set(isoDate, (countsByIsoDate.get(isoDate) ?? 0) + 1);
+    }
+
+    return Array.from({ length: 7 }, (_, index) => {
+      const date = new Date(weekStartDate);
+      date.setDate(weekStartDate.getDate() + index);
+      const isoDate = date.toISOString().slice(0, 10);
+      const workoutCount = countsByIsoDate.get(isoDate) ?? 0;
+
+      return { hasActivity: workoutCount > 0, isoDate, workoutCount };
+    });
+  },
+
+  async getProfileSummary(): Promise<ProfileSummary | null> {
+    const user = await getCurrentUser();
+
+    if (!user || !supabase) {
+      return null;
+    }
+
+    const [{ data: profile, error: profileError }, { count: achievementCount, error: achievementError }, streakDays] = await Promise.all([
+      supabase.from("profiles").select("display_name,full_name,tier,subscription_tier").eq("id", user.id).single(),
+      supabase.from("user_achievements").select("id", { count: "exact", head: true }).eq("user_id", user.id),
+      this.getActiveStreakDays()
+    ]);
+
+    if (profileError) {
+      warnSupabase("getProfileSummary.profile", profileError);
+    }
+
+    if (achievementError) {
+      warnSupabase("getProfileSummary.achievements", achievementError);
+    }
+
+    return {
+      achievementCount: achievementCount ?? 0,
+      displayName: profile?.full_name ?? profile?.display_name ?? user.email ?? "Xpirit athlete",
+      streakDays: streakDays ?? 0,
+      tier: profile?.subscription_tier ?? profile?.tier ?? "free"
+    };
+  },
+
+  async getActiveStreakDays(): Promise<number> {
+    const user = await getCurrentUser();
+
+    if (!user || !supabase) {
+      return 0;
+    }
+
+    const [{ data: runs }, { data: gymWorkouts }] = await Promise.all([
+      supabase.from("activities").select("started_at").eq("user_id", user.id).order("started_at", { ascending: false }).limit(90),
+      supabase.from("gym_workouts").select("started_at").eq("user_id", user.id).order("started_at", { ascending: false }).limit(90)
+    ]);
+
+    const activeDates = new Set(
+      [...(runs ?? []), ...(gymWorkouts ?? [])].map((row) => (row as { started_at: string }).started_at.slice(0, 10))
+    );
+
+    let streak = 0;
+    const cursor = new Date();
+    cursor.setHours(0, 0, 0, 0);
+
+    while (activeDates.has(cursor.toISOString().slice(0, 10))) {
+      streak += 1;
+      cursor.setDate(cursor.getDate() - 1);
+    }
+
+    return streak;
+  },
+
+  async getUnlockedAchievements(limit = 10): Promise<UnlockedAchievement[] | null> {
+    const user = await getCurrentUser();
+
+    if (!user || !supabase) {
+      return null;
+    }
+
+    const { data, error } = await supabase
+      .from("user_achievements")
+      .select("id,unlocked_at,achievements(title,description)")
+      .eq("user_id", user.id)
+      .order("unlocked_at", { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      warnSupabase("getUnlockedAchievements", error);
+      return null;
+    }
+
+    return ((data ?? []) as unknown as RawUserAchievementRow[]).map((row) => ({
+      detail: row.achievements?.description ?? "",
+      id: row.id,
+      title: row.achievements?.title ?? "Achievement",
+      unlockedAt: row.unlocked_at
+    }));
   },
 
   async saveGpsWorkout(workout: UnifiedWorkout) {
@@ -292,7 +509,7 @@ export const XpiritDataService = {
     return set.id as string;
   },
 
-  async updateGymSet(id: number, input: { reps: number; weightKg: number }) {
+  async updateGymSet(id: string, input: { reps: number; weightKg: number }) {
     const userId = await this.ensureProfile();
 
     if (!userId || !supabase) {
@@ -309,6 +526,34 @@ export const XpiritDataService = {
     await this.trackEvent("gym_set_updated", "gym", { reps: input.reps, weight_kg: input.weightKg, set_id: id });
 
     return true;
+  },
+
+  async getGymSets(limit = 50): Promise<GymSetRecord[] | null> {
+    const user = await getCurrentUser();
+
+    if (!user || !supabase) {
+      return null;
+    }
+
+    const { data, error } = await supabase
+      .from("gym_sets")
+      .select("id,reps,weight_kg,completed_at,created_at,gym_exercises(name)")
+      .eq("user_id", user.id)
+      .order("completed_at", { ascending: false, nullsFirst: false })
+      .limit(limit);
+
+    if (error) {
+      warnSupabase("getGymSets", error);
+      return null;
+    }
+
+    return ((data ?? []) as unknown as RawGymSetRow[]).map((row) => ({
+      activity: row.gym_exercises?.name ?? "Custom activity",
+      completedAt: row.completed_at ?? row.created_at,
+      id: row.id,
+      reps: Number(row.reps ?? 0),
+      weightKg: Number(row.weight_kg ?? 0)
+    }));
   },
 
   async saveIntervalTimer(activitySeconds: number, restSeconds: number, repeats: number) {
