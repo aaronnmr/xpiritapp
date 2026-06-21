@@ -13,6 +13,7 @@ import { XpiritDataService, type WeeklyReportSummary } from "@/services/xpirit-d
 export default function ReportScreen() {
   const { locale, t } = useI18n();
   const reportRef = useRef<ViewShot>(null);
+  const webFileInputRef = useRef<HTMLInputElement | null>(null);
   const [isSharing, setIsSharing] = useState(false);
   const [summary, setSummary] = useState<WeeklyReportSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -78,7 +79,24 @@ export default function ReportScreen() {
     }
   }
 
+  function handleWebFileSelected(event: { target: { files: FileList | null } }) {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    setBackgroundUri(objectUrl);
+    AmplitudeService.track("report_background_set", { source: "web_file_input" });
+  }
+
   function choosePhotoSource() {
+    if (Platform.OS === "web") {
+      webFileInputRef.current?.click();
+      return;
+    }
+
     if (Platform.OS === "ios") {
       ActionSheetIOS.showActionSheetWithOptions(
         {
@@ -130,6 +148,18 @@ export default function ReportScreen() {
         periodStart: getSevenDaysAgo(),
         title: "Weekly performance"
       });
+
+      if (Platform.OS === "web") {
+        const link = document.createElement("a");
+        link.href = uri;
+        link.download = "xpirit-weekly-report.png";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        AmplitudeService.track("report_shared", { format: "9:16", method: "web_download" });
+        return;
+      }
+
       const canShare = await Sharing.isAvailableAsync();
 
       if (canShare) {
@@ -139,8 +169,11 @@ export default function ReportScreen() {
           UTI: "public.png"
         });
         AmplitudeService.track("report_shared", {
-          format: "9:16"
+          format: "9:16",
+          method: "native_share_sheet"
         });
+      } else {
+        Alert.alert("Sharing not available", "Your report was saved. You can find it from your recent reports.");
       }
     } finally {
       setIsSharing(false);
@@ -149,6 +182,16 @@ export default function ReportScreen() {
 
   return (
     <View className="flex-1 bg-white px-5 pb-8 pt-14">
+      {Platform.OS === "web" ? (
+        <input
+          ref={webFileInputRef}
+          accept="image/*"
+          onChange={handleWebFileSelected as any}
+          style={{ display: "none" }}
+          type="file"
+        />
+      ) : null}
+
       <View className="mb-5 flex-row items-center justify-between">
         <Pressable className="h-11 w-11 items-center justify-center rounded-full bg-[#f3f5f9]" onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={22} color="#000000" />
@@ -235,7 +278,7 @@ export default function ReportScreen() {
 
       <Pressable className="mt-3 rounded-full bg-[#4a53ff] px-6 py-4" onPress={shareReport}>
         <Text className="text-center text-sm font-semibold uppercase tracking-widest text-white">
-          {isSharing ? "Preparing..." : "Share Report"}
+          {isSharing ? "Preparing..." : Platform.OS === "web" ? "Download Report" : "Share Report"}
         </Text>
       </Pressable>
     </View>
