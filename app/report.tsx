@@ -134,29 +134,37 @@ export default function ReportScreen() {
 
     try {
       const uri = await reportRef.current.capture();
-      await XpiritDataService.saveReportCard({
-        imageUrl: uri,
-        metrics: {
-          avg_pace_seconds_per_km: summary?.avgPaceSecondsPerKm ?? null,
-          longest_run_km: Number(longestRunKm.toFixed(2)),
-          sessions: summary?.sessionCount ?? 0,
-          top_gym_set: summary?.topGymSet ?? null,
-          total_distance_km: Number(totalDistanceKm.toFixed(2)),
-          total_duration_seconds: summary?.totalDurationSeconds ?? 0
-        },
-        periodEnd: new Date().toISOString().slice(0, 10),
-        periodStart: getSevenDaysAgo(),
-        title: "Weekly performance"
-      });
+
+      try {
+        await XpiritDataService.saveReportCard({
+          imageUrl: uri,
+          metrics: {
+            avg_pace_seconds_per_km: summary?.avgPaceSecondsPerKm ?? null,
+            longest_run_km: Number(longestRunKm.toFixed(2)),
+            sessions: summary?.sessionCount ?? 0,
+            top_gym_set: summary?.topGymSet ?? null,
+            total_distance_km: Number(totalDistanceKm.toFixed(2)),
+            total_duration_seconds: summary?.totalDurationSeconds ?? 0
+          },
+          periodEnd: new Date().toISOString().slice(0, 10),
+          periodStart: getSevenDaysAgo(),
+          title: "Weekly performance"
+        });
+      } catch (saveError) {
+        console.warn("XpiritDataService.saveReportCard failed", saveError);
+      }
 
       if (Platform.OS === "web") {
-        const link = document.createElement("a");
-        link.href = uri;
-        link.download = "xpirit-weekly-report.png";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        AmplitudeService.track("report_shared", { format: "9:16", method: "web_download" });
+        const sharedNatively = await tryWebNativeShare(uri);
+
+        if (!sharedNatively) {
+          downloadOnWeb(uri);
+        }
+
+        AmplitudeService.track("report_shared", {
+          format: "9:16",
+          method: sharedNatively ? "web_native_share" : "web_download"
+        });
         return;
       }
 
@@ -175,6 +183,9 @@ export default function ReportScreen() {
       } else {
         Alert.alert("Sharing not available", "Your report was saved. You can find it from your recent reports.");
       }
+    } catch (error) {
+      console.warn("shareReport failed", error);
+      Alert.alert("Something went wrong", "We could not generate the report. Please try again.");
     } finally {
       setIsSharing(false);
     }
@@ -278,7 +289,7 @@ export default function ReportScreen() {
 
       <Pressable className="mt-3 rounded-full bg-[#4a53ff] px-6 py-4" onPress={shareReport}>
         <Text className="text-center text-sm font-semibold uppercase tracking-widest text-white">
-          {isSharing ? "Preparing..." : Platform.OS === "web" ? "Download Report" : "Share Report"}
+          {isSharing ? "Preparing..." : "Share Report"}
         </Text>
       </Pressable>
     </View>
@@ -340,6 +351,50 @@ function getSevenDaysAgo() {
   date.setDate(date.getDate() - 7);
 
   return date.toISOString().slice(0, 10);
+}
+
+async function tryWebNativeShare(uri: string): Promise<boolean> {
+  const nav = navigator as Navigator & {
+    canShare?: (data?: ShareData) => boolean;
+    share?: (data: ShareData) => Promise<void>;
+  };
+
+  if (!nav.share) {
+    return false;
+  }
+
+  try {
+    const response = await fetch(uri);
+    const blob = await response.blob();
+    const file = new File([blob], "xpirit-weekly-report.png", { type: blob.type || "image/png" });
+
+    if (nav.canShare && !nav.canShare({ files: [file] })) {
+      return false;
+    }
+
+    await nav.share({
+      files: [file],
+      title: "Xpirit Weekly Report"
+    });
+
+    return true;
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      return true;
+    }
+
+    console.warn("Web native share failed, falling back to download", error);
+    return false;
+  }
+}
+
+function downloadOnWeb(uri: string) {
+  const link = document.createElement("a");
+  link.href = uri;
+  link.download = "xpirit-weekly-report.png";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }
 
 function getCurrentWeekLabel(locale: string) {
